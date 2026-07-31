@@ -75,10 +75,10 @@ fun TodayScreen(
                 )
                 val detail = if (profile!!.isNetMode) {
                     val sign = if (target >= 0) "+" else "−"
-                    "目标结余 $sign${abs(target).grouped()} · 按今天消耗 ${burned.grouped()} 算," +
-                        "可吃 ${allowance.grouped()},已摄入 ${eaten.grouped()}"
+                    "目标结余 $sign${abs(target).grouped()} · 按今天消耗 ${burned.grouped()} 算，" +
+                        "可吃 ${allowance.grouped()}，已摄入 ${eaten.grouped()}"
                 } else {
-                    "目标 ${allowance.grouped()},已摄入 ${eaten.grouped()}"
+                    "目标 ${allowance.grouped()}，已摄入 ${eaten.grouped()}"
                 }
                 Note(detail, modifier = Modifier.padding(bottom = 16.dp))
             } else {
@@ -107,14 +107,14 @@ fun TodayScreen(
 
         ItemRow(
             name = "基础代谢",
-            sub = "呼吸、思考、消化、细胞修复,全天",
+            sub = "呼吸、思考、消化、细胞修复，全天",
             trailing = Nutrition.bmr(profile).grouped(),
             trailingColor = c.burn,
         )
 
         ItemRow(
             name = "手表活动卡路里",
-            sub = "填「活动 / Move」那个数,不要填总计",
+            sub = "填“活动 / Move”那个数，不要填总计",
             trailing = if (day.watchActive != 0) day.watchActive.grouped() else "填写",
             trailingColor = if (day.watchActive != 0) c.burn else c.muted,
             onTap = onEditWatchActive,
@@ -137,7 +137,7 @@ fun TodayScreen(
         SectionHeader("摄入", eaten.grouped(), c.intake)
 
         if (day.food.isEmpty()) {
-            EmptyHint("还没有记录。点下方「添加餐食」开始。")
+            EmptyHint("还没有记录。点下方“添加餐食”开始。")
         } else {
             day.food.forEach { f ->
                 ItemRow(

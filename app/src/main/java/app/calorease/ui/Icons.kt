@@ -18,10 +18,19 @@ import androidx.compose.ui.unit.dp
 /**
  * 图标。
  *
- * 路径数据是从网页版 index.html 的 ICONS 常量里**原样复制**过来的,
- * 一个字符都没改写 —— 用 Compose 自带的 PathParser 解析 SVG 路径串,
- * 而不是手工翻译成 lineTo/arcTo。手工翻译一定会走样,尤其是那些
- * `a 2 2 0 012 2` 的圆角弧线。
+ * 路径数据来自网页版 index.html 的 ICONS 常量,几何形状一模一样,
+ * 但**参数被重新分隔过**,原因如下。
+ *
+ * 原版是压缩写法,把椭圆弧的两个标志位和后面的坐标粘在一起:
+ *
+ *     a2 2 0 012 2     ← rx=2 ry=2 旋转=0 大弧=0 扫向=1 x=2 y=2
+ *
+ * 这在 SVG 规范里合法(标志位只能是单个 0 或 1,所以不需要分隔符),
+ * 但 Compose 的 PathParser 是按数字文法切词的,会把 `012` 读成数字 12,
+ * 之后整组参数全部错位 —— 结果就是含弧的图标(日历、时钟、齿轮)画出来
+ * 是扭曲的,而只有直线的(秤、推子)完全正常。这个对照本身就是诊断线索。
+ *
+ * 所以这里把每个参数都显式空格分开,标志位单独成词。几何没动。
  *
  * 描边参数也照抄原来的 SVG 属性:viewBox 0 0 24 24、stroke-width 1.7、
  * linecap round、linejoin round、fill none。
@@ -33,42 +42,37 @@ data class VectorIcon(
 )
 
 object Icons {
-    val Today = VectorIcon(
-        listOf("M3 9h18M7 3v3M17 3v3M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z")
-    )
+    val Today = VectorIcon(listOf("M 3 9 h 18 M 7 3 v 3 M 17 3 v 3 M 5 5 h 14 a 2 2 0 0 1 2 2 v 12 a 2 2 0 0 1 -2 2 H 5 a 2 2 0 0 1 -2 -2 V 7 a 2 2 0 0 1 2 -2 z"))
 
     val Weight = VectorIcon(
-        paths = listOf("M5 21h14l-2-11H7L5 21z"),
+        paths = listOf("M 5 21 h 14 l -2 -11 H 7 L 5 21 z"),
         circles = listOf(Triple(12f, 6f, 2.5f)),
     )
 
-    val Tune = VectorIcon(
-        listOf("M4 20V10M12 20V4M20 20v-6M1 10h6M9 4h6M17 14h6")
-    )
+    val Tune = VectorIcon(listOf("M 4 20 V 10 M 12 20 V 4 M 20 20 v -6 M 1 10 h 6 M 9 4 h 6 M 17 14 h 6"))
 
-    val Logs = VectorIcon(
-        listOf("M3 12a9 9 0 109-9 9 9 0 00-6.4 2.7L3 8M3 3v5h5M12 7v5l3 2")
-    )
+    val Logs = VectorIcon(listOf("M 3 12 a 9 9 0 1 0 9 -9 9 9 0 0 0 -6.4 2.7 L 3 8 M 3 3 v 5 h 5 M 12 7 v 5 l 3 2"))
 
     val Settings = VectorIcon(
         paths = listOf(
-            "M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-1.8-.3 1.6 " +
-                "1.6 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.6 1.6 0 00-1-1.5 1.6 1.6 0 00-1.8.3l-.1.1a2 " +
-                "2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00.3-1.8 1.6 1.6 0 00-1.5-1H3a2 2 0 110-4h.1a1.6 " +
-                "1.6 0 001.5-1 1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3H9a1.6 " +
-                "1.6 0 001-1.5V3a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 " +
-                "112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H21a2 2 0 110 4h-.1a1.6 " +
-                "1.6 0 00-1.5 1z"
+            "M 19.4 15 a 1.6 1.6 0 0 0 .3 1.8 l .1 .1 a 2 2 0 1 1 -2.8 2.8 l -.1 -.1 a 1.6 1.6 0 0 0 -1" +
+            ".8 -.3 1.6 1.6 0 0 0 -1 1.5 V 21 a 2 2 0 1 1 -4 0 v -.1 a 1.6 1.6 0 0 0 -1 -1.5 1.6 1.6 0 " +
+            "0 0 -1.8 .3 l -.1 .1 a 2 2 0 1 1 -2.8 -2.8 l .1 -.1 a 1.6 1.6 0 0 0 .3 -1.8 1.6 1.6 0 0 0 " +
+            "-1.5 -1 H 3 a 2 2 0 1 1 0 -4 h .1 a 1.6 1.6 0 0 0 1.5 -1 1.6 1.6 0 0 0 -.3 -1.8 l -.1 -.1 " +
+            "a 2 2 0 1 1 2.8 -2.8 l .1 .1 a 1.6 1.6 0 0 0 1.8 .3 H 9 a 1.6 1.6 0 0 0 1 -1.5 V 3 a 2 2 0" +
+            " 1 1 4 0 v .1 a 1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8 -.3 l .1 -.1 a 2 2 0 1 1 2.8 2.8 l -" +
+            ".1 .1 a 1.6 1.6 0 0 0 -.3 1.8 V 9 a 1.6 1.6 0 0 0 1.5 1 H 21 a 2 2 0 1 1 0 4 h -.1 a 1.6 1" +
+            ".6 0 0 0 -1.5 1 z"
         ),
         circles = listOf(Triple(12f, 12f, 3f)),
     )
 
     /** 日期切换那两个箭头 */
-    val ChevronLeft = VectorIcon(listOf("M15 18l-6-6 6-6"))
-    val ChevronRight = VectorIcon(listOf("M9 18l6-6-6-6"))
+    val ChevronLeft = VectorIcon(listOf("M 15 18 l -6 -6 6 -6"))
+    val ChevronRight = VectorIcon(listOf("M 9 18 l 6 -6 -6 -6"))
 
     /** 关闭浮层的叉 */
-    val Close = VectorIcon(listOf("M18 6L6 18M6 6l12 12"))
+    val Close = VectorIcon(listOf("M 18 6 L 6 18 M 6 6 l 12 12"))
 }
 
 @Composable
