@@ -1,0 +1,422 @@
+name: Build Android APK
+
+# Runs whenever you change index.html, or when you press the button
+# on the Actions tab yourself.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get the repo
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      # ------------------------------------------------------------------
+      # Everything below writes the Android project from scratch, so the
+      # repo itself stays as five plain files plus this workflow.
+      # ------------------------------------------------------------------
+      - name: Create the Android project
+        run: |
+          set -e
+          mkdir -p android/app/src/main/java/app/ledger
+          mkdir -p android/app/src/main/res/values
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+          mkdir -p android/app/src/main/assets
+
+          # --- the web app becomes the app's bundled assets ---
+          cp index.html android/app/src/main/assets/
+          [ -f manifest.json ] && cp manifest.json android/app/src/main/assets/ || true
+          [ -f icon-192.png ] && cp icon-192.png android/app/src/main/assets/ || true
+          [ -f icon-512.png ] && cp icon-512.png android/app/src/main/assets/ || true
+          cp icon-512.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+          # --- settings.gradle ---
+          cat > android/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "Ledger"
+          include ':app'
+          EOF
+
+          # --- root build.gradle ---
+          cat > android/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          EOF
+
+          # --- gradle.properties ---
+          cat > android/gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx3g
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+          # --- app/build.gradle ---
+          cat > android/app/build.gradle << 'EOF'
+          plugins { id 'com.android.application' }
+
+          // 签名密钥来自 GitHub Secret。有密钥就出正式签名包,
+          // 没有就退回调试签名(能装,但每次密钥都不同,无法覆盖更新)。
+          def ksPath = System.getenv("KEYSTORE_PATH")
+          def hasKs = ksPath != null && !ksPath.isEmpty() && file(ksPath).exists()
+
+          android {
+              namespace 'app.ledger'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "app.ledger"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode System.getenv("RUN_NUMBER") ? System.getenv("RUN_NUMBER").toInteger() : 1
+                  versionName "3.0." + (System.getenv("RUN_NUMBER") ?: "0")
+              }
+
+              signingConfigs {
+                  if (hasKs) {
+                      release {
+                          storeFile file(ksPath)
+                          storePassword System.getenv("KEYSTORE_PASSWORD")
+                          keyAlias System.getenv("KEY_ALIAS")
+                          keyPassword System.getenv("KEY_PASSWORD")
+                      }
+                  }
+              }
+
+              buildTypes {
+                  debug { minifyEnabled false }
+                  release {
+                      minifyEnabled false
+                      if (hasKs) signingConfig signingConfigs.release
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          EOF
+
+          # --- AndroidManifest.xml : note there is NO internet permission ---
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="@string/app_name"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
+                  android:theme="@style/AppTheme"
+                  android:allowBackup="true"
+                  android:enableOnBackInvokedCallback="false">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:windowSoftInputMode="adjustResize"
+                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # --- strings + theme ---
+          cat > android/app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Ledger</string>
+          </resources>
+          EOF
+
+          cat > android/app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:windowBackground">#E4EAE3</item>
+                  <item name="android:statusBarColor">#E4EAE3</item>
+                  <item name="android:navigationBarColor">#E4EAE3</item>
+              </style>
+          </resources>
+          EOF
+
+          # --- MainActivity ---
+          cat > android/app/src/main/java/app/ledger/MainActivity.java << 'EOF'
+          package app.ledger;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.Toast;
+
+          import org.json.JSONObject;
+
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.nio.charset.Charset;
+
+          /**
+           * A thin native shell around the Ledger web app.
+           * The HTML lives inside the APK, so the app never touches the network.
+           * Backup export/import go through Android's file picker, which needs
+           * no storage permission.
+           */
+          public class MainActivity extends Activity {
+
+              private static final int REQ_SAVE   = 101;  // export
+              private static final int REQ_IMPORT = 102;  // restore, triggered from JS
+              private static final int REQ_CHOOSE = 103;  // an <input type=file> in the page
+
+              private WebView web;
+              private String pendingBackup;
+              /** 由页面通过 Android.setCanGoBack() 持续更新 */
+              private volatile boolean canGoBack = false;
+              private ValueCallback<Uri[]> chooserCallback;
+
+              @Override
+              protected void onCreate(Bundle state) {
+                  super.onCreate(state);
+
+                  web = new WebView(this);
+                  setContentView(web);
+
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);      // localStorage lives here
+                  s.setDatabaseEnabled(true);
+                  s.setAllowFileAccess(true);
+
+                  web.setWebViewClient(new WebViewClient());
+                  web.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public boolean onShowFileChooser(WebView v,
+                                                       ValueCallback<Uri[]> cb,
+                                                       FileChooserParams params) {
+                          chooserCallback = cb;
+                          Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                          i.addCategory(Intent.CATEGORY_OPENABLE);
+                          i.setType("*/*");
+                          startActivityForResult(i, REQ_CHOOSE);
+                          return true;
+                      }
+                  });
+
+                  web.addJavascriptInterface(new Bridge(), "Android");
+
+                  // pale background, so ask for dark status bar icons
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                      web.getRootView().setSystemUiVisibility(
+                          View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                  }
+
+                  web.loadUrl("file:///android_asset/index.html");
+              }
+
+              /**
+               * 系统返回键。
+               *
+               * 不做异步查询 —— 页面每次状态变化都会通过 setCanGoBack()
+               * 把「现在能不能返回」推过来,这里只读那个已经存好的布尔值。
+               * 之前用 evaluateJavascript 异步问页面,链路上任何一环出问题
+               * 都会退回默认分支直接退出应用,很难排查。
+               */
+              @Override
+              public void onBackPressed() {
+                  if (web != null && canGoBack) {
+                      web.evaluateJavascript(
+                          "try{window.appBack&&window.appBack()}catch(e){}", null);
+                      return;   // 交给页面处理,绝不在这里退出
+                  }
+                  super.onBackPressed();
+              }
+
+              /** Methods the page can call as Android.something() */
+              private class Bridge {
+                  @JavascriptInterface
+                  public void setCanGoBack(boolean v) { canGoBack = v; }
+
+                  @JavascriptInterface
+                  public void saveBackup(final String name, final String text) {
+                      pendingBackup = text;
+                      runOnUiThread(new Runnable() {
+                          public void run() {
+                              Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                              i.addCategory(Intent.CATEGORY_OPENABLE);
+                              i.setType("application/json");
+                              i.putExtra(Intent.EXTRA_TITLE, name);
+                              startActivityForResult(i, REQ_SAVE);
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void pickBackup() {
+                      runOnUiThread(new Runnable() {
+                          public void run() {
+                              Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                              i.addCategory(Intent.CATEGORY_OPENABLE);
+                              i.setType("*/*");
+                              startActivityForResult(i, REQ_IMPORT);
+                          }
+                      });
+                  }
+              }
+
+              @Override
+              protected void onActivityResult(int req, int result, Intent data) {
+                  super.onActivityResult(req, result, data);
+                  Uri uri = (data != null) ? data.getData() : null;
+
+                  if (req == REQ_CHOOSE) {
+                      if (chooserCallback != null) {
+                          chooserCallback.onReceiveValue(
+                              (result == RESULT_OK && uri != null) ? new Uri[]{uri} : null);
+                          chooserCallback = null;
+                      }
+                      return;
+                  }
+
+                  if (result != RESULT_OK || uri == null) return;
+
+                  if (req == REQ_SAVE) {
+                      try {
+                          OutputStream out = getContentResolver().openOutputStream(uri);
+                          out.write(pendingBackup.getBytes(Charset.forName("UTF-8")));
+                          out.close();
+                          toast("Backup saved.");
+                      } catch (Exception e) {
+                          toast("Couldn't write that file.");
+                      }
+                      pendingBackup = null;
+
+                  } else if (req == REQ_IMPORT) {
+                      try {
+                          InputStream in = getContentResolver().openInputStream(uri);
+                          ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                          byte[] chunk = new byte[8192];
+                          int len;
+                          while ((len = in.read(chunk)) != -1) buf.write(chunk, 0, len);
+                          in.close();
+                          String text = new String(buf.toByteArray(), Charset.forName("UTF-8"));
+                          web.evaluateJavascript(
+                              "applyBackup(" + JSONObject.quote(text) + ")", null);
+                      } catch (Exception e) {
+                          toast("Couldn't read that file.");
+                      }
+                  }
+              }
+
+              private void toast(String msg) {
+                  Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+              }
+          }
+          EOF
+
+          echo "Project written."
+
+      - name: Build the APK
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+
+          # 输出目录建在仓库根目录,不要建在 android/ 里面
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cd android
+
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ledger.jks"
+            export KEYSTORE_PATH="$RUNNER_TEMP/ledger.jks"
+            echo "Signing with the permanent key."
+            gradle assembleRelease --no-daemon --stacktrace
+            SRC_DIR=app/build/outputs/apk/release
+            echo "SIGNED=yes" >> $GITHUB_ENV
+          else
+            echo "::warning::No KEYSTORE_BASE64 secret found — falling back to a debug key."
+            echo "::warning::Debug keys differ on every run, so this build cannot be installed"
+            echo "::warning::over an existing copy without uninstalling first (which erases data)."
+            gradle assembleDebug --no-daemon --stacktrace
+            SRC_DIR=app/build/outputs/apk/debug
+            echo "SIGNED=no" >> $GITHUB_ENV
+          fi
+
+          echo "Looking for the APK in $SRC_DIR"
+          ls -la "$SRC_DIR" || true
+
+          # 按文件名搜索,不要写死 —— 未签名时文件名会带 -unsigned 后缀
+          APK=$(find "$SRC_DIR" -maxdepth 1 -name '*.apk' | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::No APK was produced in $SRC_DIR"
+            exit 1
+          fi
+          case "$APK" in
+            *unsigned*)
+              echo "::error::The APK came out unsigned. Check that all four keystore secrets are set."
+              exit 1 ;;
+          esac
+
+          cp "$APK" "$GITHUB_WORKSPACE/out/ledger.apk"
+          echo "Copied $APK"
+          ls -la "$GITHUB_WORKSPACE/out"
+
+      - name: Attach it to a release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: 记账本 v${{ github.run_number }}
+          body: |
+            点下方的 **ledger.apk** 安装。
+
+            签名状态:`${{ env.SIGNED }}`(yes = 用固定密钥签名,可以直接覆盖安装,数据保留)
+
+            如果这里显示 no,说明仓库缺少 KEYSTORE_BASE64 这个 Secret,
+            装之前请先在应用里导出数据备份。
+          files: out/ledger.apk
+
+      - name: Also keep it as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledger-apk
+          path: out/ledger.apk

@@ -1,0 +1,10 @@
+# 签名私钥绝不进仓库(仓库是公开的)。
+# 密钥只放在 GitHub Secrets 的 KEYSTORE_BASE64 里,外加一份网盘离线备份。
+*.jks
+*.keystore
+keystore-base64.txt
+key.properties
+
+# CI 里临时生成的 Android 工程,不入库
+android/
+out/
