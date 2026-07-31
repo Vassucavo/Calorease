@@ -194,8 +194,8 @@ private fun ArrowButton(icon: VectorIcon, enabled: Boolean, onClick: () -> Unit)
             .size(36.dp)
             .alpha(if (enabled) 1f else 0.32f)
             .clip(RoundedCornerShape(9.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(9.dp))
+            .background(c.rowBg)
+            .border(1.dp, c.surfaceBorder, RoundedCornerShape(9.dp))
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {

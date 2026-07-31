@@ -71,7 +71,7 @@ fun BottomSheet(
             modifier = Modifier
                 .fillMaxSize()
                 // 网页版是 rgba(24,36,30,.5) —— 带绿调的深色,不是纯黑
-                .background(Color(0xFF18241E).copy(alpha = 0.5f))
+                .background(c.scrim)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -84,7 +84,7 @@ fun BottomSheet(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
                     // 面板底色是页面底色 canvas,不是卡片的纸色
-                    .background(c.canvas)
+                    .background(c.panelBg)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -162,8 +162,8 @@ fun Field(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
-                .background(c.paper)
-                .border(1.dp, c.line, RoundedCornerShape(10.dp))
+                .background(c.inputBg)
+                .border(1.dp, c.surfaceBorder, RoundedCornerShape(10.dp))
                 .padding(horizontal = 12.dp, vertical = 11.dp),
             decorationBox = { inner ->
                 if (value.isEmpty() && placeholder != null) {
@@ -222,8 +222,8 @@ private fun ChipRow(
                         else Modifier.shadow(1.dp, shape, spotColor = Color(0x1F18241E))
                     )
                     .clip(shape)
-                    .background(if (on) c.ink else c.paper)
-                    .border(1.dp, if (on) c.ink else c.line, shape)
+                    .background(if (on) c.ink else c.rowBg)
+                    .border(1.dp, if (on) c.ink else c.surfaceBorder, shape)
                     .clickable { onSelect(i) }
                     .padding(vertical = verticalPadding),
                 contentAlignment = Alignment.Center,
@@ -274,10 +274,10 @@ fun QuickAmounts(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(9.dp))
-                    .background(if (on) c.burn else c.paper)
+                    .background(if (on) c.burn else c.rowBg)
                     .border(
                         1.dp,
-                        if (on) c.burn else c.line,
+                        if (on) c.burn else c.surfaceBorder,
                         RoundedCornerShape(9.dp),
                     )
                     .clickable { onPick(v) }
@@ -342,7 +342,7 @@ fun ConfirmDialog(
         Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(16.dp))
-                .background(c.sheet)
+                .background(c.panelBg)
                 .padding(20.dp),
         ) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = c.ink)

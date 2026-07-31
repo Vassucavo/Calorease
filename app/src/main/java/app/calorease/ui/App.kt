@@ -43,6 +43,7 @@ import app.calorease.data.Store
 import app.calorease.logic.Dates
 import app.calorease.ui.theme.Dimens
 import app.calorease.ui.theme.LocalColors
+import app.calorease.ui.theme.pageBackground
 
 /**
  * 五个标签页。每个带一个图标、一个底栏文字,以及页面顶部的「眉标 / 大标题」。
@@ -131,7 +132,7 @@ fun App(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(c.canvas),
+            .pageBackground(c),
     ) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             Box(
@@ -192,6 +193,7 @@ fun App(
                         onEditProfile = { sheet = Sheet.EditProfile },
                         onEditTarget = { sheet = Sheet.Target },
                         onToggleProtein = { repo.toggleProtein() },
+                        onToggleGlass = { repo.setGlass(!(state.profile?.glass ?: true)) },
                         onDeleteMine = { repo.deleteMine(it) },
                         onExport = { exportLauncher.launch(Backup.fileName(Dates.today())) },
                         onImport = { importLauncher.launch(arrayOf("*/*")) },
@@ -342,9 +344,9 @@ private fun TabBar(current: Tab, onSelect: (Tab) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(c.paper),
+            .background(c.panelBg),
     ) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(c.panelBorder))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,

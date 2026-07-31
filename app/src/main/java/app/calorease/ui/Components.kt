@@ -68,8 +68,8 @@ fun Card(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(16.dp))
+            .background(c.cardBg)
+            .border(1.dp, c.surfaceBorder, RoundedCornerShape(16.dp))
             .padding(18.dp),
         content = content,
     )
@@ -228,8 +228,8 @@ fun Callout(title: String, body: String, modifier: Modifier = Modifier) {
             .padding(bottom = 10.dp)
             .height(IntrinsicSize.Min)   // 让左边那条竖线能跟着文字高度撑满
             .clip(RoundedCornerShape(10.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(10.dp)),
+            .background(c.rowBg)
+            .border(1.dp, c.surfaceBorder, RoundedCornerShape(10.dp)),
     ) {
         Box(Modifier.width(3.dp).fillMaxHeight().background(c.burn))
         Column(Modifier.padding(14.dp)) {
@@ -336,9 +336,9 @@ fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
     val c = LocalColors.current
     ButtonBase(
         text, onClick, modifier,
-        background = c.paper,
+        background = c.rowBg,
         contentColor = c.ink,
-        border = c.line,
+        border = c.surfaceBorder,
         shadow = true,
     )
 }
@@ -349,7 +349,7 @@ fun DangerButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifie
     val c = LocalColors.current
     ButtonBase(
         text, onClick, modifier,
-        background = c.paper,
+        background = c.rowBg,
         contentColor = c.warn,
         border = c.warn,
         shadow = true,
@@ -378,8 +378,8 @@ fun ItemRow(
             .fillMaxWidth()
             .padding(bottom = 6.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(10.dp))
+            .background(c.rowBg)
+            .border(1.dp, c.surfaceBorder, RoundedCornerShape(10.dp))
             .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier)
             .padding(horizontal = 13.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,

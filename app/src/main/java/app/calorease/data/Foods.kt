@@ -28,21 +28,36 @@ object Foods {
         return loaded
     }
 
-    /**
-     * 搜索。内置库和「我的食物」一起搜,自建的排前面 ——
-     * 自己录过的通常更准,也更可能是想找的那条。
-     */
-    fun search(context: Context, query: String, mine: List<Food>): List<Food> {
-        val q = query.trim().lowercase()
-        if (q.isEmpty()) return emptyList()
-        val hit = { f: Food -> f.name.lowercase().contains(q) || f.cat.lowercase().contains(q) }
-        // 名字以关键词开头的排在包含关键词的前面
-        val starts = { f: Food -> if (f.name.lowercase().startsWith(q)) 0 else 1 }
-        return (mine.filter(hit).sortedBy(starts) + all(context).filter(hit).sortedBy(starts))
-            .take(60)
-    }
+    /** 列表里的一段:一个组标题加它下面的条目 */
+    data class Group(val title: String, val items: List<Food>, val fromMine: Boolean = false)
 
-    /** 搜索框空着时显示最近常吃的几条 */
-    fun recent(mine: List<Food>, limit: Int = 5): List<Food> =
-        mine.sortedByDescending { it.used ?: 0L }.take(limit)
+    /**
+     * 搜索结果的分组。和网页版 drawList() 一致:
+     *
+     * - 搜索框**空着**时:先「最近常吃」(自建的按使用时间倒序取 5 条),
+     *   后面接**整个内置库按分类铺开** —— 不是什么都不显示。
+     *   这一点我第一版做错了,空搜索时只给了一句空提示。
+     * - 有关键词时:先「我的食物」里名字命中的,再内置库里**名字或分类**
+     *   命中的,同样按分类分组。分类也参与匹配,所以搜「主食」能出一整类。
+     */
+    fun grouped(context: Context, query: String, mine: List<Food>): List<Group> {
+        val q = query.trim().lowercase()
+        val out = mutableListOf<Group>()
+
+        if (q.isEmpty()) {
+            val recent = mine.sortedByDescending { it.used ?: 0L }.take(5)
+            if (recent.isNotEmpty()) out += Group("最近常吃", recent, fromMine = true)
+        } else {
+            val hits = mine.filter { it.name.lowercase().contains(q) }
+            if (hits.isNotEmpty()) out += Group("我的食物", hits, fromMine = true)
+        }
+
+        val matched = all(context).filter {
+            q.isEmpty() || it.name.lowercase().contains(q) || it.cat.lowercase().contains(q)
+        }
+        // 按分类分组,顺序沿用 foods.json 里的出现顺序
+        matched.groupBy { it.cat }.forEach { (cat, items) -> out += Group(cat, items) }
+
+        return out
+    }
 }

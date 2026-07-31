@@ -39,6 +39,7 @@ fun SettingsScreen(
     onEditProfile: () -> Unit,
     onEditTarget: () -> Unit,
     onToggleProtein: () -> Unit,
+    onToggleGlass: () -> Unit,
     onDeleteMine: (String) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
@@ -64,6 +65,12 @@ fun SettingsScreen(
             sub = "每样食物多一个可选字段",
             onTap = onToggleProtein,
             action = { Toggle(on = p?.showProtein == true) },
+        )
+        ItemRow(
+            name = "玻璃质感",
+            sub = "半透明的面和柔和的光。关掉会省一点电",
+            onTap = onToggleGlass,
+            action = { Toggle(on = p?.glass ?: true) },
         )
         ItemRow(
             name = "每日热量目标",
