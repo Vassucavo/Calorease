@@ -131,7 +131,9 @@ private val LightColors = CaloreaseColors(
     rowBg = Color(0xFFFDFEFC).copy(alpha = 0.60f),
     inputBg = Color(0xFFFEFFFD).copy(alpha = 0.82f),
     surfaceBorder = Color.White.copy(alpha = 0.78f),
-    panelBg = Color(0xFFFAFCF8).copy(alpha = 0.94f),
+    // 浮层要靠背后那层真实模糊撑出磨砂感,所以不能太不透明 ——
+    // 之前调到 0.94 是因为当时还没有模糊,面一透就只能看见清晰的内容,很脏。
+    panelBg = Color(0xFFFAFCF8).copy(alpha = 0.74f),
     panelBorder = Color.White.copy(alpha = 0.62f),
     scrim = Color(0xFF18241E).copy(alpha = 0.30f),
 )

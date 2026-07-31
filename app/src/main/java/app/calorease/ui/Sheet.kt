@@ -120,7 +120,10 @@ fun BoxScope.BottomSheet(
                 StrokeIcon(Icons.Close, color = c.muted, size = 20.dp, strokeWidth = 2f)
             }
         }
-        Box(
+        // 这里必须是 Column。之前为了挂滚动修饰符图省事用了 Box,而 Box 是
+        // 层叠布局 —— 调用方发的同级元素(比如三个分页 + 搜索列表)会直接
+        // 压在一起。「搜索食物」框和顶部分页重叠就是这么来的。
+        Column(
             modifier = if (scrollable) {
                 Modifier.verticalScroll(rememberScrollState())
             } else {
@@ -174,7 +177,7 @@ fun Field(
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .glassSurface(RoundedCornerShape(10.dp), c.inputBg, elevation = 1.dp)
+                .glassSurface(10.dp, c.inputBg, elevation = 1.dp)
                 .padding(horizontal = 12.dp, vertical = 11.dp),
             decorationBox = { inner ->
                 if (value.isEmpty() && placeholder != null) {
@@ -229,7 +232,7 @@ private fun ChipRow(
                     .weight(1f)
                     .then(
                         if (on) Modifier.clip(shape).background(c.ink)
-                        else Modifier.glassSurface(shape, c.rowBg)
+                        else Modifier.glassSurface(radius, c.rowBg)
                     )
                     .clickable { onSelect(i) }
                     .padding(vertical = verticalPadding),
@@ -282,7 +285,7 @@ fun QuickAmounts(
                     .weight(1f)
                     .then(
                         if (on) Modifier.clip(shape).background(c.burn)
-                        else Modifier.glassSurface(shape, c.rowBg)
+                        else Modifier.glassSurface(9.dp, c.rowBg)
                     )
                     .clickable { onPick(v) }
                     .padding(vertical = 11.dp),

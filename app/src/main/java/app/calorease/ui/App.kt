@@ -128,10 +128,12 @@ fun App(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            // 浮层打开时把页面整体模糊 —— 这是玻璃质感真正的来源。
+            // 浮层打开时把页面整体模糊 —— 这是磨砂玻璃真正的来源。
             // 网页版靠 backdrop-filter,原生这边只能反过来做:把背后的内容
-            // 自己糊掉,再让半透明的浮层压在上面。Android 12 以下这行是空操作。
-            .blur(if (overlayOpen) 4.dp else 0.dp),
+            // 自己糊掉,再让半透明的浮层压在上面。
+            // 半径要够大,不然透出来的是「能认出字的模糊」而不是柔焦色块。
+            // Android 12 以下这行是空操作,那些机器上退化成半透明纯色。
+            .blur(if (overlayOpen) 20.dp else 0.dp),
     ) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             Box(

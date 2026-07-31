@@ -25,10 +25,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,34 +54,91 @@ import app.calorease.ui.theme.NumberStyle
 
 
 /**
- * 玻璃表面:半透明底 + 一圈高光细边 + 一层很淡的投影。
+ * 玻璃表面。
  *
- * 投影是关键 —— 上一版我只画了底和边,没有投影,于是边框在承担全部的
- * 「把轮廓拉出来」的活,看上去就是一条突兀的白线贴在浅色块上,很假。
- * 网页版每个玻璃面都带 box-shadow(卡片 0 6px 20px,内部元素 0 1px 2px +
- * 0 4px 12px),那层柔和的落影才是让面「浮起来」的东西。
+ * **不用 Modifier.shadow。** 那个 API 是给不透明表面设计的:系统按轮廓投影,
+ * 默认形状本身挡得住光。我们的表面是半透明的(卡片只有 66%),阴影就会从
+ * 下面透上来,在部件内部形成一块和边框不重合的色块 —— 内缩距离还和
+ * elevation 成正比,卡片最明显,输入框几乎看不见。这就是那个「实心颜色条」。
  *
- * clip 关掉,否则投影会被自己的形状裁掉。
+ * 现在整面自己画,从下往上七层:
+ *
+ *   1. 柔和落影   —— 几圈逐渐变淡、向下偏移的圆角矩形,拼出空气感的散开
+ *   2. 主体填充   —— 半透明磨砂底
+ *   3. 层次渐变   —— 顶部略亮、底部略沉,做出玻璃的厚度
+ *   4. 镜面反光   —— 左上角一道极淡的斜向扫光
+ *   5. 内侧高光   —— 顶边内侧一条亮线,对应 CSS 的 inset 0 1px 0
+ *   6. 极细描边   —— 一圈白色高光边
+ *
+ * 真正的折射(内容透过玻璃被扭曲)做不到,那需要着色器采样背景纹理,
+ * Compose 没有公开 API。这里能给的是「柔焦 + 层次 + 反光」的组合。
  */
 @Composable
 fun Modifier.glassSurface(
-    shape: Shape,
+    radius: Dp,
     color: Color,
     elevation: Dp = 3.dp,
     borderColor: Color? = null,
 ): Modifier {
     val c = LocalColors.current
+    val border = borderColor ?: c.surfaceBorder
+    val shape = RoundedCornerShape(radius)
     return this
-        .shadow(
-            elevation = elevation,
-            shape = shape,
-            clip = false,
-            ambientColor = Color(0xFF18241E),
-            spotColor = Color(0xFF18241E),
-        )
+        .drawBehind {
+            val r = radius.toPx()
+            val e = elevation.toPx()
+
+            // 1) 柔和落影:四层逐渐外扩、逐渐变淡,拼出散开的边缘
+            val layers = 4
+            for (i in layers downTo 1) {
+                val spread = e * i / layers.toFloat() * 1.6f
+                drawRoundRect(
+                    color = Color(0xFF18241E).copy(alpha = 0.030f / i),
+                    topLeft = Offset(-spread, -spread + e * 0.45f),
+                    size = Size(size.width + spread * 2, size.height + spread * 2),
+                    cornerRadius = CornerRadius(r + spread),
+                )
+            }
+
+            // 2) 主体
+            drawRoundRect(color = color, cornerRadius = CornerRadius(r))
+
+            // 3) 层次:顶部略亮、底部略沉
+            drawRoundRect(
+                brush = Brush.verticalGradient(
+                    0f to Color.White.copy(alpha = 0.16f),
+                    0.45f to Color.Transparent,
+                    1f to Color(0xFF18241E).copy(alpha = 0.035f),
+                ),
+                cornerRadius = CornerRadius(r),
+            )
+
+            // 4) 镜面反光:左上角一道很淡的斜扫光
+            drawRoundRect(
+                brush = Brush.linearGradient(
+                    0f to Color.White.copy(alpha = 0.20f),
+                    0.28f to Color.Transparent,
+                    start = Offset(0f, 0f),
+                    end = Offset(size.width * 0.9f, size.height * 1.5f),
+                ),
+                cornerRadius = CornerRadius(r),
+            )
+
+            // 5) 内侧顶边高光 —— CSS 里的 inset 0 1px 0 rgba(255,255,255,.9)
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.55f),
+                topLeft = Offset(r * 0.5f, 0.5f),
+                size = Size(size.width - r, 1f),
+            )
+
+            // 6) 极细描边
+            drawRoundRect(
+                color = border,
+                cornerRadius = CornerRadius(r),
+                style = Stroke(width = 1f),
+            )
+        }
         .clip(shape)
-        .background(color)
-        .border(1.dp, borderColor ?: c.surfaceBorder, shape)
 }
 
 /** 千分位。界面上所有热量数字都走这个,和网页版的 toLocaleString() 对齐 */
@@ -102,7 +164,7 @@ fun Card(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .glassSurface(RoundedCornerShape(16.dp), c.cardBg, elevation = 6.dp)
+            .glassSurface(16.dp, c.cardBg, elevation = 6.dp)
             .padding(18.dp),
         content = content,
     )
@@ -271,7 +333,7 @@ fun Callout(title: String, body: String, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .padding(bottom = 10.dp)
             .height(IntrinsicSize.Min)   // 让左边那条竖线能跟着文字高度撑满
-            .glassSurface(RoundedCornerShape(10.dp), c.rowBg),
+            .glassSurface(10.dp, c.rowBg),
     ) {
         Box(Modifier.width(3.dp).fillMaxHeight().background(c.burn))
         Column(Modifier.padding(14.dp)) {
@@ -329,12 +391,13 @@ private fun ButtonBase(
     border: Color? = null,
     shadow: Boolean = false,
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val radius = 10.dp
+    val shape = RoundedCornerShape(radius)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (shadow) Modifier.glassSurface(shape, background, borderColor = border)
+                if (shadow) Modifier.glassSurface(radius, background, borderColor = border)
                 else Modifier.clip(shape).background(background)
             )
             .clickable(onClick = onClick)
@@ -419,7 +482,7 @@ fun ItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 6.dp)
-            .glassSurface(RoundedCornerShape(10.dp), c.rowBg)
+            .glassSurface(10.dp, c.rowBg)
             .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier)
             .padding(horizontal = 13.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
