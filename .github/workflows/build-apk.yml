@@ -1,7 +1,6 @@
 name: Build Android APK
 
-# Runs whenever you change index.html, or when you press the button
-# on the Actions tab yourself.
+# 合并到 main 就出一个包,发到 Releases。也可以在 Actions 页手动点。
 on:
   push:
     branches: [main]
@@ -30,327 +29,12 @@ jobs:
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: '8.10.2'
 
-      # ------------------------------------------------------------------
-      # Everything below writes the Android project from scratch, so the
-      # repo itself stays as five plain files plus this workflow.
-      # ------------------------------------------------------------------
-      - name: Create the Android project
-        run: |
-          set -e
-          mkdir -p android/app/src/main/java/app/ledger
-          mkdir -p android/app/src/main/res/values
-          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
-          mkdir -p android/app/src/main/assets
-
-          # --- the web app becomes the app's bundled assets ---
-          cp index.html android/app/src/main/assets/
-          [ -f manifest.json ] && cp manifest.json android/app/src/main/assets/ || true
-          [ -f icon-192.png ] && cp icon-192.png android/app/src/main/assets/ || true
-          [ -f icon-512.png ] && cp icon-512.png android/app/src/main/assets/ || true
-          cp icon-512.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-
-          # --- settings.gradle ---
-          cat > android/settings.gradle << 'EOF'
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-              repositories { google(); mavenCentral() }
-          }
-          rootProject.name = "Ledger"
-          include ':app'
-          EOF
-
-          # --- root build.gradle ---
-          cat > android/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application' version '8.5.2' apply false
-          }
-          EOF
-
-          # --- gradle.properties ---
-          cat > android/gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx3g
-          android.useAndroidX=true
-          android.nonTransitiveRClass=true
-          EOF
-
-          # --- app/build.gradle ---
-          cat > android/app/build.gradle << 'EOF'
-          plugins { id 'com.android.application' }
-
-          // 签名密钥来自 GitHub Secret。有密钥就出正式签名包,
-          // 没有就退回调试签名(能装,但每次密钥都不同,无法覆盖更新)。
-          def ksPath = System.getenv("KEYSTORE_PATH")
-          def hasKs = ksPath != null && !ksPath.isEmpty() && file(ksPath).exists()
-
-          android {
-              namespace 'app.ledger'
-              compileSdk 34
-
-              defaultConfig {
-                  applicationId "app.ledger"
-                  minSdk 21
-                  targetSdk 34
-                  versionCode System.getenv("RUN_NUMBER") ? System.getenv("RUN_NUMBER").toInteger() : 1
-                  versionName "3.0." + (System.getenv("RUN_NUMBER") ?: "0")
-              }
-
-              signingConfigs {
-                  if (hasKs) {
-                      release {
-                          storeFile file(ksPath)
-                          storePassword System.getenv("KEYSTORE_PASSWORD")
-                          keyAlias System.getenv("KEY_ALIAS")
-                          keyPassword System.getenv("KEY_PASSWORD")
-                      }
-                  }
-              }
-
-              buildTypes {
-                  debug { minifyEnabled false }
-                  release {
-                      minifyEnabled false
-                      if (hasKs) signingConfig signingConfigs.release
-                  }
-              }
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-          EOF
-
-          # --- AndroidManifest.xml : note there is NO internet permission ---
-          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application
-                  android:label="@string/app_name"
-                  android:icon="@mipmap/ic_launcher"
-                  android:roundIcon="@mipmap/ic_launcher"
-                  android:theme="@style/AppTheme"
-                  android:allowBackup="true"
-                  android:enableOnBackInvokedCallback="false">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:windowSoftInputMode="adjustResize"
-                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          # --- strings + theme ---
-          cat > android/app/src/main/res/values/strings.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">Ledger</string>
-          </resources>
-          EOF
-
-          cat > android/app/src/main/res/values/styles.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
-                  <item name="android:windowBackground">#E4EAE3</item>
-                  <item name="android:statusBarColor">#E4EAE3</item>
-                  <item name="android:navigationBarColor">#E4EAE3</item>
-              </style>
-          </resources>
-          EOF
-
-          # --- MainActivity ---
-          cat > android/app/src/main/java/app/ledger/MainActivity.java << 'EOF'
-          package app.ledger;
-
-          import android.app.Activity;
-          import android.content.Intent;
-          import android.net.Uri;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.view.View;
-          import android.webkit.JavascriptInterface;
-          import android.webkit.ValueCallback;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.widget.Toast;
-
-          import org.json.JSONObject;
-
-          import java.io.ByteArrayOutputStream;
-          import java.io.InputStream;
-          import java.io.OutputStream;
-          import java.nio.charset.Charset;
-
-          /**
-           * A thin native shell around the Ledger web app.
-           * The HTML lives inside the APK, so the app never touches the network.
-           * Backup export/import go through Android's file picker, which needs
-           * no storage permission.
-           */
-          public class MainActivity extends Activity {
-
-              private static final int REQ_SAVE   = 101;  // export
-              private static final int REQ_IMPORT = 102;  // restore, triggered from JS
-              private static final int REQ_CHOOSE = 103;  // an <input type=file> in the page
-
-              private WebView web;
-              private String pendingBackup;
-              /** 由页面通过 Android.setCanGoBack() 持续更新 */
-              private volatile boolean canGoBack = false;
-              private ValueCallback<Uri[]> chooserCallback;
-
-              @Override
-              protected void onCreate(Bundle state) {
-                  super.onCreate(state);
-
-                  web = new WebView(this);
-                  setContentView(web);
-
-                  WebSettings s = web.getSettings();
-                  s.setJavaScriptEnabled(true);
-                  s.setDomStorageEnabled(true);      // localStorage lives here
-                  s.setDatabaseEnabled(true);
-                  s.setAllowFileAccess(true);
-
-                  web.setWebViewClient(new WebViewClient());
-                  web.setWebChromeClient(new WebChromeClient() {
-                      @Override
-                      public boolean onShowFileChooser(WebView v,
-                                                       ValueCallback<Uri[]> cb,
-                                                       FileChooserParams params) {
-                          chooserCallback = cb;
-                          Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                          i.addCategory(Intent.CATEGORY_OPENABLE);
-                          i.setType("*/*");
-                          startActivityForResult(i, REQ_CHOOSE);
-                          return true;
-                      }
-                  });
-
-                  web.addJavascriptInterface(new Bridge(), "Android");
-
-                  // pale background, so ask for dark status bar icons
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                      web.getRootView().setSystemUiVisibility(
-                          View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-                  }
-
-                  web.loadUrl("file:///android_asset/index.html");
-              }
-
-              /**
-               * 系统返回键。
-               *
-               * 不做异步查询 —— 页面每次状态变化都会通过 setCanGoBack()
-               * 把「现在能不能返回」推过来,这里只读那个已经存好的布尔值。
-               * 之前用 evaluateJavascript 异步问页面,链路上任何一环出问题
-               * 都会退回默认分支直接退出应用,很难排查。
-               */
-              @Override
-              public void onBackPressed() {
-                  if (web != null && canGoBack) {
-                      web.evaluateJavascript(
-                          "try{window.appBack&&window.appBack()}catch(e){}", null);
-                      return;   // 交给页面处理,绝不在这里退出
-                  }
-                  super.onBackPressed();
-              }
-
-              /** Methods the page can call as Android.something() */
-              private class Bridge {
-                  @JavascriptInterface
-                  public void setCanGoBack(boolean v) { canGoBack = v; }
-
-                  @JavascriptInterface
-                  public void saveBackup(final String name, final String text) {
-                      pendingBackup = text;
-                      runOnUiThread(new Runnable() {
-                          public void run() {
-                              Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                              i.addCategory(Intent.CATEGORY_OPENABLE);
-                              i.setType("application/json");
-                              i.putExtra(Intent.EXTRA_TITLE, name);
-                              startActivityForResult(i, REQ_SAVE);
-                          }
-                      });
-                  }
-
-                  @JavascriptInterface
-                  public void pickBackup() {
-                      runOnUiThread(new Runnable() {
-                          public void run() {
-                              Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                              i.addCategory(Intent.CATEGORY_OPENABLE);
-                              i.setType("*/*");
-                              startActivityForResult(i, REQ_IMPORT);
-                          }
-                      });
-                  }
-              }
-
-              @Override
-              protected void onActivityResult(int req, int result, Intent data) {
-                  super.onActivityResult(req, result, data);
-                  Uri uri = (data != null) ? data.getData() : null;
-
-                  if (req == REQ_CHOOSE) {
-                      if (chooserCallback != null) {
-                          chooserCallback.onReceiveValue(
-                              (result == RESULT_OK && uri != null) ? new Uri[]{uri} : null);
-                          chooserCallback = null;
-                      }
-                      return;
-                  }
-
-                  if (result != RESULT_OK || uri == null) return;
-
-                  if (req == REQ_SAVE) {
-                      try {
-                          OutputStream out = getContentResolver().openOutputStream(uri);
-                          out.write(pendingBackup.getBytes(Charset.forName("UTF-8")));
-                          out.close();
-                          toast("Backup saved.");
-                      } catch (Exception e) {
-                          toast("Couldn't write that file.");
-                      }
-                      pendingBackup = null;
-
-                  } else if (req == REQ_IMPORT) {
-                      try {
-                          InputStream in = getContentResolver().openInputStream(uri);
-                          ByteArrayOutputStream buf = new ByteArrayOutputStream();
-                          byte[] chunk = new byte[8192];
-                          int len;
-                          while ((len = in.read(chunk)) != -1) buf.write(chunk, 0, len);
-                          in.close();
-                          String text = new String(buf.toByteArray(), Charset.forName("UTF-8"));
-                          web.evaluateJavascript(
-                              "applyBackup(" + JSONObject.quote(text) + ")", null);
-                      } catch (Exception e) {
-                          toast("Couldn't read that file.");
-                      }
-                  }
-              }
-
-              private void toast(String msg) {
-                  Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-              }
-          }
-          EOF
-
-          echo "Project written."
+      # 出包之前先跑一遍单元测试。测试红了就不该有包 ——
+      # 装上去才发现校准算错了,比构建失败难查得多。
+      - name: 单元测试
+        run: gradle test --no-daemon --stacktrace
 
       - name: Build the APK
         env:
@@ -362,9 +46,9 @@ jobs:
         run: |
           set -e
 
-          # 输出目录建在仓库根目录,不要建在 android/ 里面
+          # 输出目录建在仓库根目录。以前这里踩过一次:先 cd 再 mkdir,
+          # 目录建到了子目录里,而复制目标指向根目录,Gradle 显示成功但 job 失败。
           mkdir -p "$GITHUB_WORKSPACE/out"
-          cd android
 
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ledger.jks"
@@ -397,26 +81,42 @@ jobs:
               exit 1 ;;
           esac
 
-          cp "$APK" "$GITHUB_WORKSPACE/out/ledger.apk"
+          # 食物库是靠一个 Copy 任务从仓库根目录搬进 assets 的。这条链断了的话
+          # 应用照样能装能用,只是搜不到任何食物 —— 要装到手机上才会发现。
+          # 发布之前确认它在包里。
+          if ! unzip -l "$APK" | grep -q 'assets/foods.json'; then
+            echo "::error::APK 里没有 assets/foods.json,食物库没打进去,不发布这个包。"
+            exit 1
+          fi
+
+          cp "$APK" "$GITHUB_WORKSPACE/out/calorease.apk"
           echo "Copied $APK"
           ls -la "$GITHUB_WORKSPACE/out"
 
       - name: Attach it to a release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: 记账本 v${{ github.run_number }}
+          # +20 要和 app/build.gradle.kts 里的 codeOffset 保持一致,
+          # 这样 release 的 tag、应用里显示的版本号、versionCode 是同一个数。
+          tag_name: v${{ github.run_number + 20 }}
+          name: Calorease v${{ github.run_number + 20 }}
           body: |
-            点下方的 **ledger.apk** 安装。
+            点下方的 **calorease.apk** 安装。
 
             签名状态:`${{ env.SIGNED }}`(yes = 用固定密钥签名,可以直接覆盖安装,数据保留)
 
             如果这里显示 no,说明仓库缺少 KEYSTORE_BASE64 这个 Secret,
             装之前请先在应用里导出数据备份。
-          files: out/ledger.apk
+
+            ---
+
+            **从网页壳版本(包名 app.ledger)升上来的话,要先卸载旧的那个。**
+            原生版的包名是 `app.calorease`,安卓会把它当成另一个应用,
+            装上去不会覆盖旧版,而是两个图标并存。
+          files: out/calorease.apk
 
       - name: Also keep it as an artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ledger-apk
-          path: out/ledger.apk
+          name: calorease-apk
+          path: out/calorease.apk

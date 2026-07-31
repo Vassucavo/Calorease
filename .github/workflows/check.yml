@@ -1,0 +1,72 @@
+name: Check
+
+# 每次推分支都跑一遍编译和单元测试,不发布任何东西。
+# 目的是在原生重写期间有一个快的反馈回路 —— build-apk.yml 只在 main 上跑,
+# 等不到它就没法知道分支上的代码到底编不编得过。
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      # 原生工程还没建好之前(分支上只有网页版),这一步直接跳过,
+      # 不要让 Check 变成一个永远红着、大家习惯性忽略的检查。
+      - name: 有没有原生工程
+        id: probe
+        run: |
+          if [ -f settings.gradle.kts ]; then
+            echo "native=yes" >> $GITHUB_OUTPUT
+          else
+            echo "native=no" >> $GITHUB_OUTPUT
+            echo "仓库里还没有原生工程,跳过。"
+          fi
+
+      - name: 单元测试
+        if: steps.probe.outputs.native == 'yes'
+        run: gradle test --no-daemon --stacktrace
+
+      - name: 编译 debug 包
+        if: steps.probe.outputs.native == 'yes'
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      # 构建成功只说明 Gradle 任务跑完了,不说明 foods.json 真的进了包。
+      # 它是靠一个 Copy 任务从仓库根目录搬进 assets 的,这条链一旦断了,
+      # 应用照样能装能用,只是搜不到任何食物 —— 要装到手机上才会发现。
+      - name: 食物库确实打进包里了
+        if: steps.probe.outputs.native == 'yes'
+        run: |
+          set -e
+          APK=$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -1)
+          if ! unzip -l "$APK" | grep -q 'assets/foods.json'; then
+            echo "::error::APK 里没有 assets/foods.json,食物库没打进去。"
+            unzip -l "$APK" | grep assets/ || echo "(包里一个 asset 都没有)"
+            exit 1
+          fi
+          echo "assets/foods.json 在包里。"
+
+      - name: 失败时把测试报告捞出来
+        if: failure() && steps.probe.outputs.native == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: app/build/reports/
+          if-no-files-found: ignore
