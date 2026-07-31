@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -29,6 +28,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -61,8 +69,9 @@ fun BottomSheet(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.32f))
+                .fillMaxSize()
+                // 网页版是 rgba(24,36,30,.5) —— 带绿调的深色,不是纯黑
+                .background(c.scrim)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -74,18 +83,20 @@ fun BottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-                    .background(c.sheet)
+                    // 面板底色是页面底色 canvas,不是卡片的纸色
+                    .background(c.panelBg)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { /* 吃掉点击,别穿透到遮罩 */ },
                     )
                     .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 14.dp, bottom = 18.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp)
+                    .padding(top = 18.dp, bottom = 22.dp),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -94,9 +105,9 @@ fun BottomSheet(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .clickable(onClick = onDismiss)
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                            .padding(6.dp),
                     ) {
-                        Text("×", fontSize = 26.sp, color = c.muted)
+                        StrokeIcon(Icons.Close, color = c.muted, size = 20.dp, strokeWidth = 2f)
                     }
                 }
                 content()
@@ -105,7 +116,16 @@ fun BottomSheet(
     }
 }
 
-/** 带标签的输入框 */
+/**
+ * 带标签的输入框。
+ *
+ * 用 BasicTextField 自己画,不用 Material 的 OutlinedTextField ——
+ * 后者自带浮动标签、加粗的聚焦描边、自己的圆角和行高,和网页版的 `.in`
+ * (纸色底 + 1px 细边 + 圆角 10 + 内边距 11/12)完全是两种东西,
+ * 一放上去整个应用就变成了默认 Material 模板的样子。
+ *
+ * 标签是上方一行 12sp 的灰字(`label.f span`),不是浮进框里的。
+ */
 @Composable
 fun Field(
     label: String,
@@ -118,14 +138,20 @@ fun Field(
 ) {
     val c = LocalColors.current
     Column(modifier = modifier.padding(bottom = 12.dp)) {
-        Text(label, fontSize = 12.sp, color = c.muted, modifier = Modifier.padding(bottom = 5.dp))
-        OutlinedTextField(
+        if (label.isNotEmpty()) {
+            Text(label, fontSize = 12.sp, color = c.muted, modifier = Modifier.padding(bottom = 5.dp))
+        }
+        val style = if (numeric || decimal) {
+            NumberStyle.copy(fontSize = 16.sp, color = c.ink)
+        } else {
+            TextStyle(fontSize = 16.sp, color = c.ink)
+        }
+        BasicTextField(
             value = value,
             onValueChange = onChange,
             singleLine = true,
-            textStyle = if (numeric || decimal) NumberStyle.copy(fontSize = 16.sp, color = c.ink)
-            else androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = c.ink),
-            placeholder = placeholder?.let { { Text(it, color = c.muted, fontSize = 16.sp) } },
+            textStyle = style,
+            cursorBrush = SolidColor(c.burn),
             keyboardOptions = KeyboardOptions(
                 keyboardType = when {
                     decimal -> KeyboardType.Decimal
@@ -133,8 +159,18 @@ fun Field(
                     else -> KeyboardType.Text
                 }
             ),
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(c.inputBg)
+                .border(1.dp, c.surfaceBorder, RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 11.dp),
+            decorationBox = { inner ->
+                if (value.isEmpty() && placeholder != null) {
+                    Text(placeholder, style = style.copy(color = c.muted))
+                }
+                inner()
+            },
         )
     }
 }
@@ -152,39 +188,66 @@ fun FieldError(message: String?) {
     )
 }
 
-/** 二选一的分段控件 */
+/**
+ * 分段控件(`.seg`)和面板顶部的分页(`.tabs`)。
+ *
+ * 两者都是「一排各自独立的圆角按钮」,不是一个连体的胶囊 —— 中间有间隔,
+ * 每个都有自己的边框和投影。选中态是**深墨底白字(--ink)**,不是墨绿;
+ * 只有克数快捷按钮的选中态才用墨绿。这两处颜色我一开始搞反了。
+ */
 @Composable
-fun Segmented(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit) {
+private fun ChipRow(
+    options: List<String>,
+    selectedIndex: Int,
+    gap: Dp,
+    radius: Dp,
+    verticalPadding: Dp,
+    fontSize: TextUnit,
+    bottomPadding: Dp,
+    onSelect: (Int) -> Unit,
+) {
     val c = LocalColors.current
+    val shape = RoundedCornerShape(radius)
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(10.dp)),
+        modifier = Modifier.fillMaxWidth().padding(bottom = bottomPadding),
+        horizontalArrangement = Arrangement.spacedBy(gap),
     ) {
         options.forEachIndexed { i, label ->
             val on = i == selectedIndex
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (on) c.burn else Color.Transparent)
+                    .then(
+                        if (on) Modifier
+                        else Modifier.shadow(1.dp, shape, spotColor = Color(0x1F18241E))
+                    )
+                    .clip(shape)
+                    .background(if (on) c.ink else c.rowBg)
+                    .border(1.dp, if (on) c.ink else c.surfaceBorder, shape)
                     .clickable { onSelect(i) }
-                    .padding(vertical = 10.dp),
+                    .padding(vertical = verticalPadding),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     label,
-                    fontSize = 14.sp,
-                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (on) (if (c.isDark) Color(0xFF08120F) else Color.White) else c.ink,
+                    fontSize = fontSize,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (on) c.canvas else c.muted,
                 )
             }
         }
     }
 }
+
+/** `.seg` —— 表单里的二选一,间隔 8、圆角 10、内边距 11、14sp */
+@Composable
+fun Segmented(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit) =
+    ChipRow(options, selectedIndex, 8.dp, 10.dp, 11.dp, 14.sp, 14.dp, onSelect)
+
+/** `.tabs` —— 添加餐食面板顶部的三个分页,间隔 6、圆角 9、内边距 10、13sp */
+@Composable
+fun SheetTabs(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit) =
+    ChipRow(options, selectedIndex, 6.dp, 9.dp, 10.dp, 13.sp, 16.dp, onSelect)
 
 /**
  * 克数/份数的快捷按钮。
@@ -211,14 +274,14 @@ fun QuickAmounts(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(9.dp))
-                    .background(if (on) c.burn else c.paper)
+                    .background(if (on) c.burn else c.rowBg)
                     .border(
                         1.dp,
-                        if (on) c.burn else c.line,
+                        if (on) c.burn else c.surfaceBorder,
                         RoundedCornerShape(9.dp),
                     )
                     .clickable { onPick(v) }
-                    .padding(vertical = 9.dp),
+                    .padding(vertical = 11.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -279,7 +342,7 @@ fun ConfirmDialog(
         Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(16.dp))
-                .background(c.sheet)
+                .background(c.panelBg)
                 .padding(20.dp),
         ) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
@@ -292,12 +355,11 @@ fun ConfirmDialog(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GhostButton("取消", onClick = onDismiss, modifier = Modifier.weight(1f))
-                SolidButton(
-                    confirmLabel,
-                    onClick = onConfirm,
-                    modifier = Modifier.weight(1f),
-                    background = if (danger) c.warn else c.burn,
-                )
+                if (danger) {
+                    DangerButton(confirmLabel, onClick = onConfirm, modifier = Modifier.weight(1f))
+                } else {
+                    SolidButton(confirmLabel, onClick = onConfirm, modifier = Modifier.weight(1f))
+                }
             }
         }
     }

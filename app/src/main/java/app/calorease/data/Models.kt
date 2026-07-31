@@ -29,8 +29,12 @@ data class Profile(
     val target: Int = 0,
     /** "intake" = 每天固定吃多少;"net" = 每天结余多少 */
     val targetMode: String = "intake",
-    /** 玻璃质感主题开关 */
-    val glass: Boolean = false,
+    /**
+     * 玻璃质感。**默认开着** —— 网页版是 `profile.glass !== false`,
+     * 也就是没设过就算开。旧备份里没有这个字段,反序列化时会落到这个默认值,
+     * 语义正好对上。
+     */
+    val glass: Boolean = true,
 ) {
     val isFemale get() = sex == "female"
     val isNetMode get() = targetMode == "net"

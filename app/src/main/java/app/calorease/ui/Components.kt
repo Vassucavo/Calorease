@@ -21,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -66,8 +68,8 @@ fun Card(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(16.dp))
+            .background(c.cardBg)
+            .border(1.dp, c.surfaceBorder, RoundedCornerShape(16.dp))
             .padding(18.dp),
         content = content,
     )
@@ -226,8 +228,8 @@ fun Callout(title: String, body: String, modifier: Modifier = Modifier) {
             .padding(bottom = 10.dp)
             .height(IntrinsicSize.Min)   // 让左边那条竖线能跟着文字高度撑满
             .clip(RoundedCornerShape(10.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(10.dp)),
+            .background(c.rowBg)
+            .border(1.dp, c.surfaceBorder, RoundedCornerShape(10.dp)),
     ) {
         Box(Modifier.width(3.dp).fillMaxHeight().background(c.burn))
         Column(Modifier.padding(14.dp)) {
@@ -243,7 +245,65 @@ fun Callout(title: String, body: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** 实心主按钮 */
+/**
+ * 页面顶部的标题栏。眉标一行小字 + 大标题一行,对应网页版的 `.head`:
+ * 高度至少 42、下边距 16,眉标 11sp 字距 .1em,标题 18sp/600。
+ */
+@Composable
+fun PageHeader(eyebrow: String, title: String) {
+    val c = LocalColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 42.dp)
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(eyebrow, fontSize = 11.sp, letterSpacing = 1.1.sp, color = c.muted)
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
+    }
+}
+
+/*
+ * 按钮。四种,和网页版的 .btn / .btn.ghost / .btn.gold|teal / .btn.danger 一一对应:
+ *
+ *   .btn        深墨底(--ink)白字     圆角 10,内边距 13/16,15sp/600
+ *   .btn.ghost  纸色底 + 细边 + 微投影
+ *   .btn.teal   墨绿底                表单的「保存」用这个
+ *   .btn.gold   赭金底                「加入记录」用这个
+ *   .btn.danger 纸色底 + 警示色字和边  「覆盖」「删除」用这个
+ *
+ * 深色模式下实心按钮的字要用近黑色,不然亮底上的白字会糊。
+ */
+private val BtnShadow = 3.dp
+
+@Composable
+private fun ButtonBase(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier,
+    background: Color,
+    contentColor: Color,
+    border: Color? = null,
+    shadow: Boolean = false,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (shadow) Modifier.shadow(1.dp, shape, spotColor = Color(0x1F18241E)) else Modifier)
+            .clip(shape)
+            .background(background)
+            .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier)
+            .clickable(onClick = onClick)
+            .padding(vertical = 13.dp, horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = contentColor)
+    }
+}
+
+/** 实心按钮。默认墨绿(.btn.teal),传 background 可换成赭金等 */
 @Composable
 fun SolidButton(
     text: String,
@@ -252,22 +312,48 @@ fun SolidButton(
     background: Color? = null,
 ) {
     val c = LocalColors.current
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(background ?: c.burn)
-            .clickable(onClick = onClick)
-            .padding(vertical = 13.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (c.isDark) Color(0xFF08120F) else Color.White,
-        )
-    }
+    ButtonBase(
+        text, onClick, modifier,
+        background = background ?: c.burn,
+        contentColor = if (c.isDark) Color(0xFF08120F) else Color.White,
+    )
+}
+
+/** 深墨底的主按钮(.btn) —— 底部「添加餐食」和首次设置的「保存」用它 */
+@Composable
+fun InkButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalColors.current
+    ButtonBase(
+        text, onClick, modifier,
+        background = c.ink,
+        contentColor = c.canvas,
+    )
+}
+
+/** 纸色底的次要按钮(.btn.ghost) */
+@Composable
+fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalColors.current
+    ButtonBase(
+        text, onClick, modifier,
+        background = c.rowBg,
+        contentColor = c.ink,
+        border = c.surfaceBorder,
+        shadow = true,
+    )
+}
+
+/** 危险操作(.btn.danger):纸色底,警示色的字和边框 —— 不是实心红 */
+@Composable
+fun DangerButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalColors.current
+    ButtonBase(
+        text, onClick, modifier,
+        background = c.rowBg,
+        contentColor = c.warn,
+        border = c.warn,
+        shadow = true,
+    )
 }
 
 /**
@@ -292,8 +378,8 @@ fun ItemRow(
             .fillMaxWidth()
             .padding(bottom = 6.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(10.dp))
+            .background(c.rowBg)
+            .border(1.dp, c.surfaceBorder, RoundedCornerShape(10.dp))
             .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier)
             .padding(horizontal = 13.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,

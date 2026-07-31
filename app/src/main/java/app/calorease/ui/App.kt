@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -42,13 +43,18 @@ import app.calorease.data.Store
 import app.calorease.logic.Dates
 import app.calorease.ui.theme.Dimens
 import app.calorease.ui.theme.LocalColors
+import app.calorease.ui.theme.pageBackground
 
-enum class Tab(val label: String) {
-    Today("今天"),
-    Weight("体重"),
-    Tune("校准"),
-    Logs("记录"),
-    Settings("设置"),
+/**
+ * 五个标签页。每个带一个图标、一个底栏文字,以及页面顶部的「眉标 / 大标题」。
+ * 这些文字和网页版 render() 里那张 T 表一一对应。
+ */
+enum class Tab(val label: String, val icon: VectorIcon, val eyebrow: String, val title: String) {
+    Today("今天", Icons.Today, "Calorease", ""),           // 标题是当天日期,运行时填
+    Weight("体重", Icons.Weight, "体重", "趋势"),
+    Tune("校准", Icons.Tune, "校准", "你身体给出的真实数字"),
+    Logs("记录", Icons.Logs, "记录", "历史"),
+    Settings("设置", Icons.Settings, "设置", "偏好与备份"),
 }
 
 /** 当前打开的是哪个浮层。同时只会有一个 */
@@ -126,7 +132,7 @@ fun App(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(c.canvas),
+            .pageBackground(c),
     ) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             Box(
@@ -142,6 +148,11 @@ fun App(
                         bottom = if (tab == Tab.Today) 88.dp else 24.dp,
                     ),
             ) {
+                Column {
+                PageHeader(
+                    eyebrow = tab.eyebrow,
+                    title = if (tab == Tab.Today) Dates.full(state.curDate) else tab.title,
+                )
                 when (tab) {
                     Tab.Today -> TodayScreen(
                         state = state,
@@ -182,19 +193,30 @@ fun App(
                         onEditProfile = { sheet = Sheet.EditProfile },
                         onEditTarget = { sheet = Sheet.Target },
                         onToggleProtein = { repo.toggleProtein() },
+                        onToggleGlass = { repo.setGlass(!(state.profile?.glass ?: true)) },
                         onDeleteMine = { repo.deleteMine(it) },
                         onExport = { exportLauncher.launch(Backup.fileName(Dates.today())) },
                         onImport = { importLauncher.launch(arrayOf("*/*")) },
                     )
                 }
+                }
             }
 
             if (tab == Tab.Today) {
-                AddFab(
+                // 整宽的深墨按钮,贴在标签栏上方 —— 网页版的 .fab 就是这个样子,
+                // 不是右下角的小药丸。浮层打开时 Dialog 会盖住它。
+                InkButton(
+                    "添加餐食",
                     onClick = { sheet = Sheet.AddFood },
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = Dimens.screenPadding, bottom = 20.dp),
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = Dimens.screenPadding)
+                        .padding(bottom = 14.dp)
+                        .shadow(
+                            elevation = 10.dp,
+                            shape = RoundedCornerShape(10.dp),
+                            spotColor = Color(0x3818241E),
+                        ),
                 )
             }
         }
@@ -316,57 +338,32 @@ private fun RenderSheet(
     }
 }
 
-/** 添加餐食。只在今日页出现 —— 其他页面加餐食没有意义 */
-@Composable
-private fun AddFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val c = LocalColors.current
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(c.intake)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 15.dp),
-    ) {
-        Text(
-            "添加餐食",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (c.isDark) Color(0xFF1A1206) else Color.White,
-        )
-    }
-}
-
 @Composable
 private fun TabBar(current: Tab, onSelect: (Tab) -> Unit) {
     val c = LocalColors.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(c.sheet),
+            .background(c.panelBg),
     ) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(c.panelBorder))
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(Dimens.tabBarHeight),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
         ) {
             Tab.entries.forEach { t ->
                 val on = t == current
-                Box(
+                val tint = if (on) c.burn else c.muted
+                Column(
                     modifier = Modifier
                         .weight(1f)
-                        .height(Dimens.tabBarHeight)
-                        .clickable { onSelect(t) },
-                    contentAlignment = Alignment.Center,
+                        .clickable { onSelect(t) }
+                        .padding(top = 8.dp, bottom = 9.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    Text(
-                        t.label,
-                        fontSize = 12.sp,
-                        fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (on) c.burn else c.muted,
-                    )
+                    StrokeIcon(t.icon, color = tint, size = 21.dp)
+                    Text(t.label, fontSize = 10.sp, lineHeight = 10.sp, color = tint)
                 }
             }
         }

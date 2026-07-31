@@ -162,7 +162,7 @@ private fun DateNav(dateKey: String, isToday: Boolean, onStep: (Long) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ArrowButton("‹", enabled = true) { onStep(-1) }
+        ArrowButton(Icons.ChevronLeft, enabled = true) { onStep(-1) }
         Column(
             modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -181,40 +181,25 @@ private fun DateNav(dateKey: String, isToday: Boolean, onStep: (Long) -> Unit) {
                 textAlign = TextAlign.Center,
             )
         }
-        ArrowButton("›", enabled = !isToday) { onStep(1) }
+        ArrowButton(Icons.ChevronRight, enabled = !isToday) { onStep(1) }
     }
 }
 
+/** 36×36 圆角 9 的方形按钮,里面一个 17px 的描边箭头 —— 和网页版的 .datenav button 一致 */
 @Composable
-private fun ArrowButton(glyph: String, enabled: Boolean, onClick: () -> Unit) {
+private fun ArrowButton(icon: VectorIcon, enabled: Boolean, onClick: () -> Unit) {
     val c = LocalColors.current
     Box(
         modifier = Modifier
             .size(36.dp)
             .alpha(if (enabled) 1f else 0.32f)
             .clip(RoundedCornerShape(9.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(9.dp))
+            .background(c.rowBg)
+            .border(1.dp, c.surfaceBorder, RoundedCornerShape(9.dp))
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Text(glyph, fontSize = 20.sp, color = c.ink)
+        StrokeIcon(icon, color = c.ink, size = 17.dp, strokeWidth = 2f)
     }
 }
 
-@Composable
-fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val c = LocalColors.current
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(11.dp))
-            .background(c.paper)
-            .border(1.dp, c.line, RoundedCornerShape(11.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 13.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = c.ink)
-    }
-}

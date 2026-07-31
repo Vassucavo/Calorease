@@ -32,10 +32,11 @@ class MainActivity : ComponentActivity() {
         repo.load()
 
         setContent {
-            CaloreaseTheme {
-                val r = remember { repo }
-                val s = remember { store }
-                val state by r.state.collectAsState()
+            val r = remember { repo }
+            val s = remember { store }
+            val state by r.state.collectAsState()
+            // 玻璃质感默认开着,和网页版一致 —— 只有在设置里显式关掉才是 false
+            CaloreaseTheme(glass = state.profile?.glass ?: true) {
                 App(state = state, repo = r, store = s)
             }
         }

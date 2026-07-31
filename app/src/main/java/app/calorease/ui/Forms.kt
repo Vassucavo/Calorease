@@ -162,8 +162,8 @@ fun WeightSheet(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(9.dp))
-                            .background(if (on) c.burn else c.paper)
-                            .border(1.dp, if (on) c.burn else c.line, RoundedCornerShape(9.dp))
+                            .background(if (on) c.burn else c.rowBg)
+                            .border(1.dp, if (on) c.burn else c.surfaceBorder, RoundedCornerShape(9.dp))
                             .clickable { date = key }
                             .padding(vertical = 9.dp),
                         contentAlignment = Alignment.Center,
@@ -283,7 +283,8 @@ fun ProfileSheet(
             }
 
             FieldError(error)
-            SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
+            // 身体数据这一版在网页版用的是深墨底的 .btn,不是表单通用的 .btn.teal
+            InkButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
                 when (val v = Validate.profile(if (female) "female" else "male", age, height, weight, profile)) {
                     is Checked.Invalid -> error = v.message
                     is Checked.Valid -> { onSave(v.value); onDismiss() }

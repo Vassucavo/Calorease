@@ -6,10 +6,7 @@ import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -77,7 +74,7 @@ fun AddFoodSheet(
                 },
             )
         } else {
-            Segmented(
+            SheetTabs(
                 options = AddTab.entries.map { it.label },
                 selectedIndex = tab.ordinal,
                 onSelect = { tab = AddTab.entries[it] },
@@ -180,46 +177,56 @@ private fun PickedDetail(
     }
 }
 
-/** 搜索。搜索框空着时显示最近常吃的几条 */
+/**
+ * 搜索。搜索框空着时铺开整个内置食物库(按分类分组),
+ * 自建过的排在最前面的「最近常吃」里。
+ */
 @Composable
 private fun SearchTab(mine: List<Food>, onPick: (Food) -> Unit) {
-    val c = LocalColors.current
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
-
-    val results = if (query.isBlank()) Foods.recent(mine) else Foods.search(context, query, mine)
+    val groups = Foods.grouped(context, query, mine)
 
     Column {
         Field(label = "", value = query, onChange = { query = it }, placeholder = "搜索食物…")
 
-        if (results.isEmpty()) {
-            EmptyHint(
-                if (query.isBlank()) "自己录入过的食物会出现在这里,方便一键复用。\n也可以直接搜内置的 208 条。"
-                else "没找到。换个说法试试,或者用「快速录入」自己填一条。"
-            )
+        if (groups.isEmpty()) {
+            EmptyHint("没找到。用「快速录入」自己填一条,填完会存起来。")
         } else {
-            if (query.isBlank()) {
-                Text(
-                    "最近常吃",
-                    fontSize = 11.sp,
-                    letterSpacing = 1.1.sp,
-                    color = c.muted,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-            }
-            LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
-                items(results, key = { it.id ?: (it.cat + it.name) }) { f ->
-                    ItemRow(
-                        name = f.name,
-                        sub = if (f.isPerHundredGrams) "${f.cat} · 每 100g" else "${f.cat} · 每份",
-                        trailing = f.kcal.grouped(),
-                        trailingColor = c.intake,
-                        onTap = { onPick(f) },
-                    )
-                }
+            // 面板本身已经能滚了,这里不能再套 LazyColumn ——
+            // 可滚动容器里嵌可滚动容器,Compose 会因为高度约束是无穷大而崩。
+            groups.forEach { g ->
+                GroupHead(g.title)
+                g.items.forEach { f -> PickRow(f, isMine = g.fromMine, onPick = onPick) }
             }
         }
     }
+}
+
+/** `.grouphead` —— 11sp、字距 .06em、muted、600,上 14 下 6 */
+@Composable
+private fun GroupHead(title: String) {
+    Text(
+        title,
+        fontSize = 11.sp,
+        letterSpacing = 0.66.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = LocalColors.current.muted,
+        modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
+    )
+}
+
+/** `.pick` —— 和普通条目同尺寸,副行写计量方式,自建的多一个「已保存」标 */
+@Composable
+private fun PickRow(food: Food, isMine: Boolean, onPick: (Food) -> Unit) {
+    val c = LocalColors.current
+    ItemRow(
+        name = food.name,
+        sub = (if (food.isPerHundredGrams) "每100g" else "每份") + if (isMine) " · 已保存" else "",
+        trailing = food.kcal.grouped(),
+        trailingColor = c.intake,
+        onTap = { onPick(food) },
+    )
 }
 
 /** 快速录入。配合「拍照问 AI 再手填」的流程 */
