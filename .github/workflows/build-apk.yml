@@ -46,6 +46,17 @@ jobs:
         run: |
           set -e
 
+          # 版本号在 shell 里算。不要用 Actions 表达式做加法 ——
+          # 它的语法里没有算术运算符,那样写整个 workflow 文件会解析失败:
+          # run 建出来 0 秒就红,名字显示成文件路径而不是 workflow 的 name,
+          # 连一个 job 都不会创建。
+          #
+          # 连带的一个坑:这段注释也不能举那个错误写法当例子。Actions 会对
+          # 整个 run 块做表达式替换,不管那串东西在 shell 里是不是注释。
+          #
+          # 偏移量要和 app/build.gradle.kts 里的 codeOffset 保持一致。
+          echo "APP_VERSION=$((GITHUB_RUN_NUMBER + 20))" >> "$GITHUB_ENV"
+
           # 输出目录建在仓库根目录。以前这里踩过一次:先 cd 再 mkdir,
           # 目录建到了子目录里,而复制目标指向根目录,Gradle 显示成功但 job 失败。
           mkdir -p "$GITHUB_WORKSPACE/out"
@@ -56,14 +67,14 @@ jobs:
             echo "Signing with the permanent key."
             gradle assembleRelease --no-daemon --stacktrace
             SRC_DIR=app/build/outputs/apk/release
-            echo "SIGNED=yes" >> $GITHUB_ENV
+            echo "SIGNED=yes" >> "$GITHUB_ENV"
           else
             echo "::warning::No KEYSTORE_BASE64 secret found — falling back to a debug key."
             echo "::warning::Debug keys differ on every run, so this build cannot be installed"
             echo "::warning::over an existing copy without uninstalling first (which erases data)."
             gradle assembleDebug --no-daemon --stacktrace
             SRC_DIR=app/build/outputs/apk/debug
-            echo "SIGNED=no" >> $GITHUB_ENV
+            echo "SIGNED=no" >> "$GITHUB_ENV"
           fi
 
           echo "Looking for the APK in $SRC_DIR"
@@ -96,10 +107,10 @@ jobs:
       - name: Attach it to a release
         uses: softprops/action-gh-release@v2
         with:
-          # +20 要和 app/build.gradle.kts 里的 codeOffset 保持一致,
-          # 这样 release 的 tag、应用里显示的版本号、versionCode 是同一个数。
-          tag_name: v${{ github.run_number + 20 }}
-          name: Calorease v${{ github.run_number + 20 }}
+          # APP_VERSION 是上一步在 shell 里算好写进 $GITHUB_ENV 的,
+          # 和 versionCode、versionName 是同一个数。
+          tag_name: v${{ env.APP_VERSION }}
+          name: Calorease v${{ env.APP_VERSION }}
           body: |
             点下方的 **calorease.apk** 安装。
 
