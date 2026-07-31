@@ -87,14 +87,17 @@ Kotlin 2.0.21 → Compose BOM 2024.10.01 → compileSdk/targetSdk 35,minSdk 24
 ### 版本号
 
 ```
-versionCode = github.run_number + codeOffset(=20)
+versionCode = GITHUB_RUN_NUMBER + codeOffset(=20)     ← app/build.gradle.kts
 versionName = "9.0.$versionCode"
-release tag = v${{ github.run_number + 20 }}
+release tag = v$APP_VERSION                            ← build-apk.yml 里在 shell 算好写进 $GITHUB_ENV
 ```
 
 三个数字必须对齐。`codeOffset` 定义在 `app/build.gradle.kts`,
 **只能往上加,永远不要调小** —— 安卓不允许用更低的 versionCode 覆盖安装。
 偏移 20 的由来见错误档案第 13 条。
+
+**tag 的那个加法必须在 shell 里算,不能用 Actions 表达式。**
+表达式语法里没有算术运算符,那样写整个 workflow 文件会解析失败。见第 15 条。
 
 ### 签名密钥(关键)
 
@@ -195,7 +198,7 @@ release tag = v${{ github.run_number + 20 }}
 
 > 这一节是这份文档最有价值的部分。每条都记了**症状 → 根因 → 修法 → 可推广的教训**。
 >
-> 原生重写之后,其中 6 条在结构上不再成立(标注为「已消失」),
+> 原生重写之后,前 12 条里有 6 条在结构上不再成立(标注为「已消失」),
 > 3 条被结构性挡住(标注为「已挡住」)。**「已消失」不等于教训作废** ——
 > 那些教训是关于怎么诊断问题的,换个技术栈照样会以别的形式出现。
 
@@ -314,6 +317,28 @@ release tag = v${{ github.run_number + 20 }}
   凡是"构建期搬运"的产物,都要在构建后验证它真的到位了。这是第 7 条的反面:
   那次是编译成功但 job 失败,这次是 job 成功但产物不对。
 
+### 15. Actions 表达式不支持算术,而这个错误只有合并之后才看得见 ★新增
+
+- **症状**:PR 合并进 main 之后,Releases 里什么都没有。去 Actions 页看,
+  `build-apk.yml` 确实触发了,但**耗时 0 秒、失败、一个 job 都没有**,
+  而且这个 run 的名字显示成了文件路径 `.github/workflows/build-apk.yml`,
+  不是 workflow 里写的 `Build Android APK`。
+- **根因**:release 那步写了 `tag_name: v${{ github.run_number + 20 }}`。
+  GitHub Actions 的表达式语法只有比较、逻辑和取属性那几个运算符,**没有算术运算符**。
+  整个 workflow 文件解析失败,压根没轮到跑步骤。
+- **修法**:加法放到 shell 里算,`echo "APP_VERSION=$((GITHUB_RUN_NUMBER + 20))" >> "$GITHUB_ENV"`,
+  再用 `${{ env.APP_VERSION }}` 引用。
+- **诊断特征(值得记住)**:**run 名字显示成文件路径 + 耗时 0 秒 + job 数为 0**,
+  这三条凑齐就是 workflow 文件本身没解析成功,不用去翻日志找哪一步错了。
+- **教训一**:**CI 全绿只覆盖它真正跑过的东西。** `check.yml` 在每个分支上跑了 9 次
+  全绿,但它从来没有校验过 `build-apk.yml` —— workflow 文件只有被触发时才解析,
+  而 `build-apk.yml` 只在 main 上触发。所以那个语法错误在合并之前是完全不可见的。
+  修法是加 `actionlint`(静态检查,不需要触发),现在它是 `check.yml` 的第一步。
+- **教训二(连带踩到的)**:写注释解释这个坑时,在 `run:` 块里举了错误写法当例子 ——
+  **Actions 会对整个 `run:` 块做表达式替换,不管那串东西在 shell 里是不是注释**,
+  于是注释本身又触发了同一个 bug。是靠一条 grep 全仓库扫 `${{ }}` 里有没有算术符
+  才抓到的。**在会被求值的文本里,不能把错误写法当例子。**
+
 ---
 
 ## 四、流程上的教训
@@ -350,7 +375,7 @@ release tag = v${{ github.run_number + 20 }}
 ```
 我们继续维护一个已经在运行的安卓应用 Calorease(卡路里记账)。
 项目归档文档已经放在这个 Project 的知识库里,请先读一遍,
-特别是「错误档案」那一节 —— 那里记录了 14 个已经踩过的坑和根因,不要再犯。
+特别是「错误档案」那一节 —— 那里记录了 15 个已经踩过的坑和根因,不要再犯。
 
 ## 快速背景
 
