@@ -25,6 +25,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,67 +60,112 @@ fun App(
 ) {
     val c = LocalColors.current
     var tab by remember { mutableStateOf(Tab.Today) }
+    var showAdd by remember { mutableStateOf(false) }
 
+    // 浮层自己吃掉返回键(Dialog 会处理),这里只管标签页那一级
     BackHandler(enabled = tab != Tab.Today) { tab = Tab.Today }
+
+    if (showAdd) {
+        AddFoodSheet(
+            profile = state.profile,
+            mine = state.mine,
+            curDate = state.curDate,
+            onDismiss = { showAdd = false },
+            onAdd = { name, kcal, protein -> repo.addFood(name, kcal, protein) },
+            onRemember = { repo.rememberFood(it) },
+            onTouch = { repo.touchFood(it) },
+        )
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(c.canvas),
     ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .verticalScroll(rememberScrollState())
-                .padding(
-                    start = Dimens.screenPadding,
-                    end = Dimens.screenPadding,
-                    top = Dimens.screenPadding,
-                    bottom = 24.dp,
-                ),
-        ) {
-            when (tab) {
-                Tab.Today -> TodayScreen(
-                    state = state,
-                    onStepDay = { repo.stepDay(it) },
-                    onEditWatchActive = { /* 面板下一步接上 */ },
-                    onAddBurn = { },
-                    onEditBurn = { },
-                    onDeleteBurn = { repo.deleteBurn(it) },
-                    onEditFood = { },
-                    onDeleteFood = { repo.deleteFood(it) },
-                )
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = Dimens.screenPadding,
+                        end = Dimens.screenPadding,
+                        top = Dimens.screenPadding,
+                        // 今日页右下角有添加餐食的按钮,底部多留一截别让它盖住最后一条
+                        bottom = if (tab == Tab.Today) 88.dp else 24.dp,
+                    ),
+            ) {
+                when (tab) {
+                    Tab.Today -> TodayScreen(
+                        state = state,
+                        onStepDay = { repo.stepDay(it) },
+                        onEditWatchActive = { /* 面板下一步接上 */ },
+                        onAddBurn = { },
+                        onEditBurn = { },
+                        onDeleteBurn = { repo.deleteBurn(it) },
+                        onEditFood = { },
+                        onDeleteFood = { repo.deleteFood(it) },
+                    )
 
-                Tab.Weight -> WeightScreen(
-                    state = state,
-                    onAdd = { /* 表单面板下一步接上 */ },
-                    onEdit = { },
-                    onDelete = { repo.deleteWeight(it) },
-                )
+                    Tab.Weight -> WeightScreen(
+                        state = state,
+                        onAdd = { /* 表单面板下一步接上 */ },
+                        onEdit = { },
+                        onDelete = { repo.deleteWeight(it) },
+                    )
 
-                Tab.Tune -> TuneScreen(
-                    state = state,
-                    onApplyTarget = { value ->
-                        repo.setTarget(value, netMode = false)
-                        tab = Tab.Today
-                    },
-                )
+                    Tab.Tune -> TuneScreen(
+                        state = state,
+                        onApplyTarget = { value ->
+                            repo.setTarget(value, netMode = false)
+                            tab = Tab.Today
+                        },
+                    )
 
-                Tab.Logs -> LogsScreen(
-                    state = state,
-                    onOpenDay = { key ->
-                        repo.openDate(key)
-                        tab = Tab.Today
-                    },
-                )
+                    Tab.Logs -> LogsScreen(
+                        state = state,
+                        onOpenDay = { key ->
+                            repo.openDate(key)
+                            tab = Tab.Today
+                        },
+                    )
 
-                Tab.Settings -> ComingSoon("设置", "身体数据、目标、备份还在搬")
+                    Tab.Settings -> ComingSoon("设置", "身体数据、目标、备份还在搬")
+                }
+            }
+
+            if (tab == Tab.Today) {
+                AddFab(
+                    onClick = { showAdd = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = Dimens.screenPadding, bottom = 20.dp),
+                )
             }
         }
 
         TabBar(current = tab, onSelect = { tab = it })
+    }
+}
+
+/** 添加餐食。只在今日页出现 —— 其他页面加餐食没有意义 */
+@Composable
+private fun AddFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalColors.current
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.intake)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 15.dp),
+    ) {
+        Text(
+            "添加餐食",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (c.isDark) Color(0xFF1A1206) else Color.White,
+        )
     }
 }
 
