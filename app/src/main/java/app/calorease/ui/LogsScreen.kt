@@ -43,7 +43,7 @@ fun LogsScreen(
                 (if (avgNet >= 0) "+" else "−") + abs(avgNet).grouped(),
                 color = if (avgNet >= 0) c.intake else c.burn,
             )
-            Note("平均每天摄入 ${avgIn.grouped()}。单日波动很大,以周为单位看才靠谱。")
+            Note("平均每天摄入 ${avgIn.grouped()}。单日波动很大，以周为单位看才靠谱。")
         }
 
         keys.forEach { k ->

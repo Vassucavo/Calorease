@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,7 +40,6 @@ fun SettingsScreen(
     onEditProfile: () -> Unit,
     onEditTarget: () -> Unit,
     onToggleProtein: () -> Unit,
-    onToggleGlass: () -> Unit,
     onDeleteMine: (String) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
@@ -67,12 +67,6 @@ fun SettingsScreen(
             action = { Toggle(on = p?.showProtein == true) },
         )
         ItemRow(
-            name = "玻璃质感",
-            sub = "半透明的面和柔和的光。关掉会省一点电",
-            onTap = onToggleGlass,
-            action = { Toggle(on = p?.glass ?: true) },
-        )
-        ItemRow(
             name = "每日热量目标",
             sub = when {
                 p == null || p.target == 0 -> "未设置 —— 校准页可以帮你算"
@@ -85,9 +79,9 @@ fun SettingsScreen(
             },
         )
 
-        SectionHeader("我的食物", "${state.mine.size} 条")
+        SectionHeader("我的食物", "${state.mine.size} 条", mono = false)
         if (state.mine.isEmpty()) {
-            EmptyHint("自己录入过的食物会存在这里,下次一键复用。")
+            EmptyHint("自己录入过的食物会存在这里，下次一键复用。")
         } else {
             state.mine.take(40).forEach { f ->
                 ItemRow(
@@ -100,26 +94,19 @@ fun SettingsScreen(
                 )
             }
             if (state.mine.size > 40) {
-                Note("只显示最近 40 条,共 ${state.mine.size} 条。")
+                Note("只显示最近 40 条，共 ${state.mine.size} 条。")
             }
         }
 
         SectionHeader("备份")
         Note(
-            "所有数据只存在这台手机上,不会上传到任何地方。正因如此,卸载应用或清除数据就等于全部丢失 —— " +
+            "所有数据只存在这台手机上，不会上传到任何地方。正因如此，卸载应用或清除数据就等于全部丢失 —— " +
                 "定期导出一份留着。正常的版本更新不会影响数据。"
         )
         GhostButton("导出数据", onClick = onExport, modifier = Modifier.padding(top = 10.dp))
         GhostButton("从备份恢复", onClick = onImport, modifier = Modifier.padding(top = 8.dp))
-        Note("恢复时可以选「覆盖」或「合并」。合并保留两边记录,冲突时以备份为准。")
+        Note("恢复时可以选“覆盖”或“合并”。合并保留两边记录，冲突时以备份为准。")
 
-        SectionHeader("关于")
-        Note(
-            "食物表、Mifflin-St Jeor 公式、7700 这个常数、手表的活动卡路里 —— 全都是估算值。" +
-                "这个应用的价值不在于任何单个数字有多准,而在于连续记录几周后,校准能把系统性误差抵消掉。" +
-                "看趋势,不要看单日。\n\n" +
-                "要针对个人健康状况设定目标,应当咨询医生或注册营养师。"
-        )
     }
 }
 
@@ -150,7 +137,7 @@ private fun Toggle(on: Boolean) {
 
 /** 恢复备份时选覆盖还是合并 */
 @Composable
-fun RestoreSheet(
+fun BoxScope.RestoreSheet(
     dayCount: Int,
     weightCount: Int,
     onDismiss: () -> Unit,
@@ -160,8 +147,8 @@ fun RestoreSheet(
     BottomSheet("恢复备份", onDismiss) {
         Column {
             Note("备份里有 $dayCount 天的记录、$weightCount 条体重。")
-            Note("覆盖:清空当前数据,完全用备份替换。")
-            Note("合并:保留现有记录,补进备份里有而本机没有的,重复的以备份为准。")
+            Note("覆盖：清空当前数据，完全用备份替换。")
+            Note("合并：保留现有记录，补进备份里有而本机没有的，重复的以备份为准。")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

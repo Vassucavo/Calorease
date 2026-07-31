@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,6 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.calorease.ui.theme.LocalColors
@@ -43,6 +46,38 @@ import app.calorease.ui.theme.NumberStyle
  *
  * 换成原生是为了换手感,不是换长相。
  */
+
+
+/**
+ * 玻璃表面:半透明底 + 一圈高光细边 + 一层很淡的投影。
+ *
+ * 投影是关键 —— 上一版我只画了底和边,没有投影,于是边框在承担全部的
+ * 「把轮廓拉出来」的活,看上去就是一条突兀的白线贴在浅色块上,很假。
+ * 网页版每个玻璃面都带 box-shadow(卡片 0 6px 20px,内部元素 0 1px 2px +
+ * 0 4px 12px),那层柔和的落影才是让面「浮起来」的东西。
+ *
+ * clip 关掉,否则投影会被自己的形状裁掉。
+ */
+@Composable
+fun Modifier.glassSurface(
+    shape: Shape,
+    color: Color,
+    elevation: Dp = 3.dp,
+    borderColor: Color? = null,
+): Modifier {
+    val c = LocalColors.current
+    return this
+        .shadow(
+            elevation = elevation,
+            shape = shape,
+            clip = false,
+            ambientColor = Color(0xFF18241E),
+            spotColor = Color(0xFF18241E),
+        )
+        .clip(shape)
+        .background(color)
+        .border(1.dp, borderColor ?: c.surfaceBorder, shape)
+}
 
 /** 千分位。界面上所有热量数字都走这个,和网页版的 toLocaleString() 对齐 */
 fun Int.grouped(): String {
@@ -67,17 +102,26 @@ fun Card(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(c.cardBg)
-            .border(1.dp, c.surfaceBorder, RoundedCornerShape(16.dp))
+            .glassSurface(RoundedCornerShape(16.dp), c.cardBg, elevation = 6.dp)
             .padding(18.dp),
         content = content,
     )
 }
 
-/** 段落小标题。右边可以挂一个数字(消耗/摄入的合计) */
+/**
+ * 段落小标题。右边可以挂一段尾字。
+ *
+ * 两种尾字在网页版里长得不一样:消耗/摄入的合计是 `class="num"` 加强调色 ——
+ * 等宽、加粗;而「我的食物 0 条」这种计数是内联的 `font-weight:400` 普通文字。
+ * [mono] 用来区分这两种。
+ */
 @Composable
-fun SectionHeader(title: String, trailing: String? = null, trailingColor: Color? = null) {
+fun SectionHeader(
+    title: String,
+    trailing: String? = null,
+    trailingColor: Color? = null,
+    mono: Boolean = true,
+) {
     val c = LocalColors.current
     Row(
         modifier = Modifier
@@ -96,9 +140,9 @@ fun SectionHeader(title: String, trailing: String? = null, trailingColor: Color?
         if (trailing != null) {
             Text(
                 trailing,
-                style = NumberStyle,
+                style = if (mono) NumberStyle else LocalTextStyle.current,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = if (mono) FontWeight.SemiBold else FontWeight.Normal,
                 color = trailingColor ?: c.muted,
             )
         }
@@ -227,9 +271,7 @@ fun Callout(title: String, body: String, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .padding(bottom = 10.dp)
             .height(IntrinsicSize.Min)   // 让左边那条竖线能跟着文字高度撑满
-            .clip(RoundedCornerShape(10.dp))
-            .background(c.rowBg)
-            .border(1.dp, c.surfaceBorder, RoundedCornerShape(10.dp)),
+            .glassSurface(RoundedCornerShape(10.dp), c.rowBg),
     ) {
         Box(Modifier.width(3.dp).fillMaxHeight().background(c.burn))
         Column(Modifier.padding(14.dp)) {
@@ -291,10 +333,10 @@ private fun ButtonBase(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (shadow) Modifier.shadow(1.dp, shape, spotColor = Color(0x1F18241E)) else Modifier)
-            .clip(shape)
-            .background(background)
-            .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier)
+            .then(
+                if (shadow) Modifier.glassSurface(shape, background, borderColor = border)
+                else Modifier.clip(shape).background(background)
+            )
             .clickable(onClick = onClick)
             .padding(vertical = 13.dp, horizontal = 16.dp),
         contentAlignment = Alignment.Center,
@@ -377,9 +419,7 @@ fun ItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 6.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(c.rowBg)
-            .border(1.dp, c.surfaceBorder, RoundedCornerShape(10.dp))
+            .glassSurface(RoundedCornerShape(10.dp), c.rowBg)
             .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier)
             .padding(horizontal = 13.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,

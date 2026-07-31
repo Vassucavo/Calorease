@@ -30,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -120,19 +122,16 @@ fun App(
         }
     }
 
-    RenderSheet(
-        sheet = sheet,
-        state = state,
-        repo = repo,
-        store = store,
-        firstRun = state.isFirstRun,
-        onClose = { sheet = null },
-    )
+    val overlayOpen = sheet != null || state.isFirstRun
 
+    Box(modifier = Modifier.fillMaxSize().pageBackground(c)) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .pageBackground(c),
+            // 浮层打开时把页面整体模糊 —— 这是玻璃质感真正的来源。
+            // 网页版靠 backdrop-filter,原生这边只能反过来做:把背后的内容
+            // 自己糊掉,再让半透明的浮层压在上面。Android 12 以下这行是空操作。
+            .blur(if (overlayOpen) 4.dp else 0.dp),
     ) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             Box(
@@ -193,7 +192,6 @@ fun App(
                         onEditProfile = { sheet = Sheet.EditProfile },
                         onEditTarget = { sheet = Sheet.Target },
                         onToggleProtein = { repo.toggleProtein() },
-                        onToggleGlass = { repo.setGlass(!(state.profile?.glass ?: true)) },
                         onDeleteMine = { repo.deleteMine(it) },
                         onExport = { exportLauncher.launch(Backup.fileName(Dates.today())) },
                         onImport = { importLauncher.launch(arrayOf("*/*")) },
@@ -223,10 +221,20 @@ fun App(
 
         TabBar(current = tab, onSelect = { tab = it })
     }
+
+        RenderSheet(
+            sheet = sheet,
+            state = state,
+            repo = repo,
+            store = store,
+            firstRun = state.isFirstRun,
+            onClose = { sheet = null },
+        )
+    }
 }
 
 @Composable
-private fun RenderSheet(
+private fun BoxScope.RenderSheet(
     sheet: Sheet?,
     state: Repository.AppState,
     repo: Repository,
