@@ -14,6 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # workflow 文件只有被触发时才会解析,而 build-apk.yml 只在 main 上触发 ——
+      # 它里面的语法错误在合并之前完全看不见。踩过一次:
+      # 写了 ${{ github.run_number + 20 }},但 Actions 的表达式语法没有算术
+      # 运算符,整个文件解析失败,合并的那一刻 run 建出来 0 秒就红,一个 job 都没有。
+      # actionlint 是静态检查,不需要触发就能发现这类问题。
+      - name: 校验 workflow 文件本身
+        uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -color
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
