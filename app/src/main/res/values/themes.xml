@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      只是启动窗口的底色,真正的界面全在 Compose 里。
+      背景色和 Compose 主题的 canvas 保持一致,冷启动时才不会闪一下白屏。
+    -->
+    <style name="Theme.Calorease" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/canvas</item>
+        <item name="android:statusBarColor">@color/canvas</item>
+        <item name="android:navigationBarColor">@color/canvas</item>
+    </style>
+</resources>
