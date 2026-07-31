@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -113,24 +116,27 @@ fun SettingsScreen(
     }
 }
 
-/** 开关。只是显示状态,点击由整行接管 */
+/**
+ * 开关。尺寸照网页版的 `.toggle`:48×28、圆角 14,滑块 22 直径、边距 3,
+ * 关闭时轨道是分隔线色,打开时是墨绿。滑块移动带 .18s 的缓动。
+ * 只显示状态,点击由整行接管。
+ */
 @Composable
 private fun Toggle(on: Boolean) {
     val c = LocalColors.current
+    val knobOffset by animateDpAsState(if (on) 23.dp else 3.dp, label = "toggle")
     Box(
         modifier = Modifier
-            .size(width = 42.dp, height = 24.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (on) c.burn else c.canvas)
-            .border(1.dp, if (on) c.burn else c.line, RoundedCornerShape(12.dp)),
-        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+            .size(width = 48.dp, height = 28.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (on) c.burn else c.line),
     ) {
         Box(
             modifier = Modifier
-                .padding(horizontal = 3.dp)
-                .size(18.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(if (on) c.paper else c.muted),
+                .padding(start = knobOffset, top = 3.dp)
+                .size(22.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(Color.White),
         )
     }
 }
@@ -144,7 +150,6 @@ fun RestoreSheet(
     onReplace: () -> Unit,
     onMerge: () -> Unit,
 ) {
-    val c = LocalColors.current
     BottomSheet("恢复备份", onDismiss) {
         Column {
             Note("备份里有 $dayCount 天的记录、$weightCount 条体重。")
@@ -156,12 +161,8 @@ fun RestoreSheet(
             ) {
                 GhostButton("取消", onClick = onDismiss, modifier = Modifier.weight(1f))
                 SolidButton("合并", onClick = onMerge, modifier = Modifier.weight(1f))
-                SolidButton(
-                    "覆盖",
-                    onClick = onReplace,
-                    modifier = Modifier.weight(1f),
-                    background = c.warn,
-                )
+                // .btn.danger 是纸色底 + 警示色的字和边框,不是实心红
+                DangerButton("覆盖", onClick = onReplace, modifier = Modifier.weight(1f))
             }
         }
     }

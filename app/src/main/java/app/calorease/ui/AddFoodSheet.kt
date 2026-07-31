@@ -6,10 +6,7 @@ import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -77,7 +74,7 @@ fun AddFoodSheet(
                 },
             )
         } else {
-            Segmented(
+            SheetTabs(
                 options = AddTab.entries.map { it.label },
                 selectedIndex = tab.ordinal,
                 onSelect = { tab = AddTab.entries[it] },
@@ -207,16 +204,17 @@ private fun SearchTab(mine: List<Food>, onPick: (Food) -> Unit) {
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
             }
-            LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
-                items(results, key = { it.id ?: (it.cat + it.name) }) { f ->
-                    ItemRow(
-                        name = f.name,
-                        sub = if (f.isPerHundredGrams) "${f.cat} · 每 100g" else "${f.cat} · 每份",
-                        trailing = f.kcal.grouped(),
-                        trailingColor = c.intake,
-                        onTap = { onPick(f) },
-                    )
-                }
+            // 面板本身已经能滚了,这里不能再套一个 LazyColumn ——
+            // 可滚动容器里嵌可滚动容器,Compose 会因为高度约束是无穷大而崩。
+            // 搜索结果最多 60 条,直接铺开没有性能问题。
+            results.forEach { f ->
+                ItemRow(
+                    name = f.name,
+                    sub = if (f.isPerHundredGrams) "${f.cat} · 每 100g" else "${f.cat} · 每份",
+                    trailing = f.kcal.grouped(),
+                    trailingColor = c.intake,
+                    onTap = { onPick(f) },
+                )
             }
         }
     }
