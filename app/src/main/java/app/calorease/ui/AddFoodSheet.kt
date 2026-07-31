@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,7 +29,6 @@ import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.calorease.data.Food
@@ -179,6 +179,15 @@ fun BoxScope.AddFoodSheet(
  *
  * 两次 subcompose 用不同的槽位,所以量身的那份有自己独立的状态,不会和真正
  * 显示的那份串味。它只被测量、不被摆放,画不出来也拿不到焦点。
+ *
+ * **量身用的约束只能放开下限,不能放开上限。** 里面有 verticalScroll,
+ * 而可滚动容器一旦被无限高度测量,Compose 是直接抛异常的
+ * (「Vertically scrollable component was measured with an infinity maximum
+ * height constraints」),不是退化成某个默认值 —— 我第一版写的
+ * maxHeight = Infinity,结果点开「添加餐食」当场闪退。
+ *
+ * 用父级给的上限去量本来也够:量出来的高度反正还要按这个上限夹一次,
+ * 上限之外的部分本就用不上。
  */
 @Composable
 private fun MatchHeight(
@@ -186,7 +195,7 @@ private fun MatchHeight(
     content: @Composable () -> Unit,
 ) {
     SubcomposeLayout { constraints ->
-        val loose = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
+        val loose = constraints.copy(minHeight = 0)
         val natural = subcompose(0, probe).maxOfOrNull { it.measure(loose).height } ?: 0
         val target =
             if (constraints.hasBoundedHeight) natural.coerceAtMost(constraints.maxHeight)
@@ -201,8 +210,8 @@ private fun MatchHeight(
  * 面板正文:顶部三个分页 + 当前这页的内容 + 底部固定的提交按钮。
  *
  * [fill] 为 true 时按父级给的高度铺满(真正显示的那份),为 false 时按内容
- * 自然高度长(量身用的那份)。区别只在中间那段能不能用 weight —— 高度无上限时
- * weight 会被当成 0,量出来的面板就只剩分页和按钮了。
+ * 自然高度长(量身用的那份)。量身那份不能铺满,也不能给中间那段挂 weight ——
+ * 那样量出来的永远是「父级还剩多少」,不是这一页本身有多长。
  */
 @Composable
 private fun AddFoodBody(
@@ -225,25 +234,24 @@ private fun AddFoodBody(
             )
         }
 
-        val body = if (fill) Modifier.weight(1f) else Modifier
-        when (tab) {
-            AddTab.Search -> SearchTab(mine = mine, onPick = onPick, bodyModifier = body)
+        // 量身的那份不挂滚动也不挂 weight:它要报的是「这一页有多长」,
+        // 挂了 weight 报的就成了「父级还剩多少」,挂了滚动则多担一份风险 ——
+        // 可滚动容器一旦被无限高度测量,Compose 是直接抛异常的。
+        val scrollState = rememberScrollState()
+        val body = if (fill) {
+            Modifier.weight(1f).fadeOutBottom(SheetTail).verticalScroll(scrollState)
+        } else {
+            Modifier
+        }
 
-            AddTab.Quick -> Column(
-                modifier = body
-                    .fadeOutBottom(SheetTail)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = SheetPad),
-            ) {
+        when (tab) {
+            AddTab.Search -> SearchTab(mine = mine, onPick = onPick, fill = fill)
+
+            AddTab.Quick -> Column(modifier = body.padding(horizontal = SheetPad)) {
                 QuickTab(showProtein, quick)
             }
 
-            AddTab.Label -> Column(
-                modifier = body
-                    .fadeOutBottom(SheetTail)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = SheetPad),
-            ) {
+            AddTab.Label -> Column(modifier = body.padding(horizontal = SheetPad)) {
                 LabelTab(showProtein, label)
             }
         }
@@ -279,7 +287,7 @@ private fun AddFoodBody(
  * 不是拿一条渐变色带盖住它 —— 色带的颜色只能靠算,和半透明面板对不准就穿帮。
  */
 @Composable
-private fun SearchTab(mine: List<Food>, onPick: (Food) -> Unit, bodyModifier: Modifier) {
+private fun ColumnScope.SearchTab(mine: List<Food>, onPick: (Food) -> Unit, fill: Boolean) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     val groups = Foods.grouped(context, query, mine)
@@ -297,9 +305,14 @@ private fun SearchTab(mine: List<Food>, onPick: (Food) -> Unit, bodyModifier: Mo
         Field(label = "", value = query, onChange = { query = it }, placeholder = "搜索食物…")
     }
 
+    // 量身那一趟不摆列表 —— 惰性列表被无限高度测量会直接抛异常,而这一页
+    // 本来就不参与定高(高度是照「营养标签」那页定的)。
+    if (!fill) return
+
     LazyColumn(
         state = listState,
-        modifier = bodyModifier
+        modifier = Modifier
+            .weight(1f)
             .fillMaxWidth()
             .fadeEdges(top = 16.dp * fade, bottom = SheetTail),
         // 左右内边距给列表自己,而不是给外面的容器 —— 淡出要整宽,条目要缩进

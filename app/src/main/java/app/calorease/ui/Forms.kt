@@ -39,7 +39,6 @@ fun BoxScope.WatchActiveSheet(current: Int, onDismiss: () -> Unit, onSave: (Int)
     BottomSheet("活动消耗", onDismiss) {
         Column {
             Field("千卡", text, { text = it }, numeric = true, placeholder = "0")
-            Note("填手表上“活动 / Move”那个数，不要填总消耗 —— 总消耗里已经包含基础代谢了，填进来会算两遍。")
             FieldError(error)
             SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
                 when (val v = Validate.watchActive(text)) {
@@ -132,15 +131,21 @@ fun BoxScope.WeightSheet(
 ) {
     var kg by remember { mutableStateOf(existing?.kg?.f1() ?: "") }
     var bf by remember { mutableStateOf(existing?.bf?.f1() ?: "") }
+    // 默认就是今天,所以不需要一个「今天」按钮 —— 什么都不动就已经是今天
     var date by remember { mutableStateOf(existing?.date ?: Dates.today()) }
+    var pickingDate by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    BottomSheet(if (existing == null) "记录体重" else "修改记录", onDismiss) {
+    BottomSheet(
+        if (existing == null) "记录体重" else "修改记录",
+        onDismiss,
+        dimmed = pickingDate,
+    ) {
         Column {
             Field("体重（kg）", kg, { kg = it }, decimal = true, placeholder = "70.0")
             Field("体脂率（%，可留空）", bf, { bf = it }, decimal = true, placeholder = "留空也行")
 
-            DateField(label = "日期", value = date, onChange = { date = it })
+            DateRow(label = "日期", value = date) { pickingDate = true }
 
             FieldError(error)
 
@@ -155,6 +160,18 @@ fun BoxScope.WeightSheet(
                 }
             })
         }
+    }
+
+    // 月历叠在这个面板上面,选完就收 —— 和「添加餐食 → 食物详情」是同一套层级
+    if (pickingDate) {
+        DatePickSheet(
+            value = date,
+            onDismiss = { pickingDate = false },
+            onPick = {
+                date = it
+                pickingDate = false
+            },
+        )
     }
 }
 

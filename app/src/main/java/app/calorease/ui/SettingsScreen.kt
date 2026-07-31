@@ -15,6 +15,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,22 +83,40 @@ fun SettingsScreen(
             },
         )
 
-        SectionHeader("我的食物", "${state.mine.size} 条", mono = false)
-        if (state.mine.isEmpty()) {
-            EmptyHint("自己录入过的食物会存在这里，下次一键复用。")
-        } else {
-            state.mine.take(40).forEach { f ->
-                ItemRow(
-                    name = f.name,
-                    sub = (if (f.isPerHundredGrams) "每 100g · " else "每份 · ") +
-                        (if (f.protein > 0) "${f.protein.f1()}g 蛋白质" else "点击可删除"),
-                    trailing = f.kcal.grouped(),
-                    trailingColor = c.intake,
-                    onDelete = { f.id?.let(onDeleteMine) },
+        // 平时收起来只占一行,点开才铺出来 —— 录得多了以后这一段能有几十条,
+        // 一直摊在页面上会把「备份」挤到很下面。
+        var mineOpen by remember { mutableStateOf(false) }
+
+        SectionHeader("我的食物")
+        ItemRow(
+            name = "已保存的食物",
+            onTap = { mineOpen = !mineOpen },
+            action = {
+                Text("${state.mine.size} 条", fontSize = 13.sp, color = c.muted)
+                StrokeIcon(
+                    if (mineOpen) Icons.ChevronUp else Icons.ChevronDown,
+                    color = c.muted,
+                    size = 18.dp,
                 )
-            }
-            if (state.mine.size > 40) {
-                Note("只显示最近 40 条，共 ${state.mine.size} 条。")
+            },
+        )
+        if (mineOpen) {
+            if (state.mine.isEmpty()) {
+                EmptyHint("自己录入过的食物会存在这里，下次一键复用。")
+            } else {
+                state.mine.take(40).forEach { f ->
+                    ItemRow(
+                        name = f.name,
+                        sub = (if (f.isPerHundredGrams) "每 100g · " else "每份 · ") +
+                            (if (f.protein > 0) "${f.protein.f1()}g 蛋白质" else "点击可删除"),
+                        trailing = f.kcal.grouped(),
+                        trailingColor = c.intake,
+                        onDelete = { f.id?.let(onDeleteMine) },
+                    )
+                }
+                if (state.mine.size > 40) {
+                    Note("只显示最近 40 条，共 ${state.mine.size} 条。")
+                }
             }
         }
 
