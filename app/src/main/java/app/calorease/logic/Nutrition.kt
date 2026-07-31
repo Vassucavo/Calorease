@@ -8,7 +8,7 @@ import kotlin.math.roundToInt
 /**
  * 消耗模型:
  *
- *     每日消耗 = 基础代谢(Mifflin-St Jeor) + 手表活动卡路里 + 手动运动条目
+ *     每日消耗 = 基础代谢(Mifflin-St Jeor) + 活动消耗 + 手动运动条目
  *
  * 刻意没有用活动系数(1.2 / 1.375 / …),因为那会和手表的活动卡路里重复计算。
  * 代价是漏掉了食物热效应(约摄入的 10%),所以这个模型系统性偏低 ——
@@ -23,9 +23,17 @@ object Nutrition {
         return (if (p.isFemale) base - 161 else base + 5).roundToInt()
     }
 
-    /** 当天总消耗 */
-    fun burned(p: Profile?, day: DayLog): Int =
-        bmr(p) + day.watchActive + day.manualBurn
+    /**
+     * 当天总消耗。
+     *
+     * [Profile.activeIncludesWorkouts] 开着时不再加手动运动条目 —— 那块表报的
+     * 活动消耗里已经含了运动,再加一遍就是同一份消耗算两次,可吃额度会虚高。
+     * 条目本身不删,只是不进总数,这样你还看得见那天做了什么。
+     */
+    fun burned(p: Profile?, day: DayLog): Int {
+        val manual = if (p?.activeIncludesWorkouts == true) 0 else day.manualBurn
+        return bmr(p) + day.watchActive + manual
+    }
 
     /**
      * 今天还能吃多少。

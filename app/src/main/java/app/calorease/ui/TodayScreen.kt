@@ -113,19 +113,22 @@ fun TodayScreen(
         )
 
         ItemRow(
-            name = "手表活动卡路里",
+            name = "活动消耗",
             sub = "填“活动 / Move”那个数，不要填总计",
             trailing = if (day.watchActive != 0) day.watchActive.grouped() else "填写",
             trailingColor = if (day.watchActive != 0) c.burn else c.muted,
             onTap = onEditWatchActive,
         )
 
+        // 手表口径里已经含了运动时,这些条目照常显示但不进总数(见 Nutrition.burned)。
+        // 不显示成 0、也不隐藏 —— 你还是该看得见那天做了什么。
+        val counted = profile?.activeIncludesWorkouts != true
         day.burn.forEach { b ->
             ItemRow(
                 name = b.label,
-                sub = "点击可修改",
+                sub = if (counted) null else "已含在活动消耗里",
                 trailing = b.kcal.grouped(),
-                trailingColor = c.burn,
+                trailingColor = if (counted) c.burn else c.muted,
                 onTap = { onEditBurn(b.id) },
                 onDelete = { onDeleteBurn(b.id) },
             )
@@ -140,9 +143,15 @@ fun TodayScreen(
             EmptyHint("还没有记录。点下方“添加餐食”开始。")
         } else {
             day.food.forEach { f ->
+                // 副行写「吃了多少」。份量是录入时一起存下来的;手动改过的条目
+                // 算不出份量,那就只剩蛋白质,两样都没有就不占这一行。
+                val bits = listOfNotNull(
+                    f.portion,
+                    if (profile?.showProtein == true && f.protein > 0) "${f.protein}g 蛋白质" else null,
+                )
                 ItemRow(
                     name = f.name,
-                    sub = if (profile?.showProtein == true && f.protein > 0) "${f.protein}g 蛋白质" else "点击可修改",
+                    sub = bits.joinToString(" · ").takeIf { it.isNotEmpty() },
                     trailing = f.kcal.grouped(),
                     trailingColor = c.intake,
                     onTap = { onEditFood(f.id) },

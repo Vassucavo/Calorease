@@ -87,7 +87,8 @@ class Repository(private val store: Store) {
         _state.value = s.copy(day = day, history = history)
     }
 
-    fun addFood(name: String, kcal: Int, protein: Int) {
+    /** [amount]/[unit] 是吃了多少,今日页那行副文字要用。算不出来就传 null */
+    fun addFood(name: String, kcal: Int, protein: Int, amount: Double? = null, unit: String? = null) {
         val s = _state.value
         val entry = FoodEntry(
             id = newId(),
@@ -95,6 +96,8 @@ class Repository(private val store: Store) {
             kcal = kcal,
             protein = protein,
             ts = System.currentTimeMillis(),
+            amount = amount,
+            unit = unit,
         )
         commitDay(s.day.copy(food = s.day.food + entry))
     }
@@ -154,6 +157,24 @@ class Repository(private val store: Store) {
     fun toggleProtein() = mutateProfile { it.copy(showProtein = !it.showProtein) }
 
     fun setGlass(on: Boolean) = mutateProfile { it.copy(glass = on) }
+
+    /**
+     * 切「活动消耗已含运动」。
+     *
+     * 它会改变每一天的总消耗,所以历史汇总里存的 burned 也跟着过时了 ——
+     * 这里把所有存过的日子重算一遍写回去,不然校准页会拿着两套口径的数
+     * 一起做回归,算出来的目标是错的。
+     */
+    fun toggleActiveIncludesWorkouts() {
+        mutateProfile { it.copy(activeIncludesWorkouts = !it.activeIncludesWorkouts) }
+        val s = _state.value
+        val p = s.profile
+        val history = s.history.mapValues { (date, h) ->
+            h.copy(burned = Nutrition.burned(p, store.loadDay(date)))
+        }
+        store.saveHistory(history)
+        _state.value = _state.value.copy(history = history)
+    }
 
     // ---------- 体重 ----------
 

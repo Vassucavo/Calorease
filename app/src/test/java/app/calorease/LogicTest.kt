@@ -59,6 +59,27 @@ class LogicTest {
         assertEquals(Nutrition.bmr(male) + 400 + 300, Nutrition.burned(male, day))
     }
 
+    @Test
+    fun `活动消耗已含运动时手动条目不再累加`() {
+        val day = DayLog(
+            date = "2026-05-01",
+            watchActive = 400,
+            burn = listOf(BurnEntry("b1", "跑步", 300)),
+        )
+        val p = male.copy(activeIncludesWorkouts = true)
+        // 那 300 已经在 400 里面了,再加一遍就是同一份消耗算两次
+        assertEquals(Nutrition.bmr(p) + 400, Nutrition.burned(p, day))
+    }
+
+    @Test
+    fun `份量文字按计量方式给出单位`() {
+        assertEquals("200g", FoodEntry("a", "米饭", 200, unit = "g", amount = 200.0).portion)
+        assertEquals("1.5 份", FoodEntry("b", "酸奶", 90, unit = "x", amount = 1.5).portion)
+        // 手动改过的条目没有份量,那一行就不该出现
+        assertEquals(null, FoodEntry("c", "食堂午餐", 600).portion)
+        assertEquals(null, FoodEntry("d", "空的", 0, unit = "g", amount = 0.0).portion)
+    }
+
     // ---------- 目标热量的两种模式 ----------
 
     @Test

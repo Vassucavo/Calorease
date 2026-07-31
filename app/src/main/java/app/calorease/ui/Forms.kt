@@ -1,29 +1,19 @@
 package app.calorease.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.calorease.data.Profile
 import app.calorease.data.WeightEntry
 import app.calorease.logic.Checked
@@ -40,13 +30,13 @@ import app.calorease.ui.theme.LocalColors
  * (错误档案第 10 条)这件事在结构上做不到。
  */
 
-/** 手表活动卡路里 */
+/** 活动消耗 —— 手表上「活动 / Move」那个数 */
 @Composable
 fun BoxScope.WatchActiveSheet(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
     var text by remember { mutableStateOf(if (current > 0) current.toString() else "") }
     var error by remember { mutableStateOf<String?>(null) }
 
-    BottomSheet("手表活动卡路里", onDismiss) {
+    BottomSheet("活动消耗", onDismiss) {
         Column {
             Field("千卡", text, { text = it }, numeric = true, placeholder = "0")
             Note("填手表上“活动 / Move”那个数，不要填总消耗 —— 总消耗里已经包含基础代谢了，填进来会算两遍。")
@@ -140,7 +130,6 @@ fun BoxScope.WeightSheet(
     onDismiss: () -> Unit,
     onSave: (WeightEntry, replaceDate: String?) -> Unit,
 ) {
-    val c = LocalColors.current
     var kg by remember { mutableStateOf(existing?.kg?.f1() ?: "") }
     var bf by remember { mutableStateOf(existing?.bf?.f1() ?: "") }
     var date by remember { mutableStateOf(existing?.date ?: Dates.today()) }
@@ -151,36 +140,8 @@ fun BoxScope.WeightSheet(
             Field("体重（kg）", kg, { kg = it }, decimal = true, placeholder = "70.0")
             Field("体脂率（%，可留空）", bf, { bf = it }, decimal = true, placeholder = "留空也行")
 
-            Text("日期", fontSize = 12.sp, color = c.muted, modifier = Modifier.padding(bottom = 5.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                listOf(0L to "今天", -1L to "昨天", -2L to "前天").forEach { (offset, label) ->
-                    val key = Dates.shift(Dates.today(), offset)
-                    val on = date == key
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (on) c.burn else c.rowBg)
-                            .border(1.dp, if (on) c.burn else c.surfaceBorder, RoundedCornerShape(9.dp))
-                            .clickable { date = key }
-                            .padding(vertical = 9.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            label,
-                            fontSize = 13.sp,
-                            fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (on) (if (c.isDark) Color(0xFF08120F) else Color.White) else c.ink,
-                        )
-                    }
-                }
-            }
-            Field("或者直接填（YYYY-MM-DD）", date, { date = it })
+            DateField(label = "日期", value = date, onChange = { date = it })
 
-            Note("尽量固定时间称，最好早上起床后。以前记过的数据也能补录 —— 把日期改成当时那天就行。")
             FieldError(error)
 
             SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
@@ -280,7 +241,7 @@ fun BoxScope.ProfileSheet(
                 Card {
                     StatRow("基础代谢", Nutrition.bmr(preview.value).grouped(), valueColor = c.burn, last = true)
                 }
-                Note("这只是静息消耗。加上手表活动卡路里和手动运动，才是当天的总消耗。")
+                Note("这只是静息消耗。加上活动消耗和手动运动，才是当天的总消耗。")
             }
 
             FieldError(error)

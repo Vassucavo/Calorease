@@ -35,6 +35,16 @@ data class Profile(
      * 语义正好对上。
      */
     val glass: Boolean = true,
+    /**
+     * 手表报的活动消耗里是不是已经把运动算进去了。
+     *
+     * 不同手表口径不一样:有的「活动 / Move」只算日常走动,有的把跑步、
+     * 力量训练一并算进去。后者再单独记一条运动就是重复计算。
+     * 开着的时候手动运动条目照常显示,但不再加进当天总消耗。
+     *
+     * 存在偏好里而不是每天的记录里 —— 它取决于你戴的是哪块表,不取决于哪一天。
+     */
+    val activeIncludesWorkouts: Boolean = false,
 ) {
     val isFemale get() = sex == "female"
     val isNetMode get() = targetMode == "net"
@@ -50,7 +60,26 @@ data class FoodEntry(
     val kcal: Int,
     val protein: Int = 0,
     val ts: Long = 0L,
-)
+    /**
+     * 吃了多少。g 模式下是克数,x 模式下是份数。
+     *
+     * 这两个字段是新加的,网页版没有 —— 但 Store 的 Json 配了
+     * ignoreUnknownKeys,所以新备份能导进旧版(多的字段被忽略),
+     * 旧备份也能导进新版(缺的字段落到 null)。手动改过的条目算不出份量,
+     * 就留 null,界面上什么都不显示。
+     */
+    val amount: Double? = null,
+    /** "g" = 克;"x" = 份 */
+    val unit: String? = null,
+) {
+    /** 「200g」「1.5 份」。份量不明时返回 null */
+    val portion: String? get() {
+        val a = amount ?: return null
+        if (a <= 0) return null
+        val n = if (a == a.toInt().toDouble()) a.toInt().toString() else ((a * 10).toInt() / 10.0).toString()
+        return if (unit == "x") "$n 份" else "${n}g"
+    }
+}
 
 /** 一条手动运动记录,存在当天的 day.burn 里 */
 @Serializable
