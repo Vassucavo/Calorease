@@ -7,7 +7,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -186,6 +189,83 @@ fun MeasureBar(label: String, value: Int, fraction: Float, color: Color) {
                 .height(9.dp)
                 .clip(RoundedCornerShape(5.dp))
                 .background(color),
+        )
+    }
+}
+
+/** 卡片里的一行「标签 — 数值」,底部一条细分隔线,最后一行不画线 */
+@Composable
+fun StatRow(label: String, value: String, valueColor: Color? = null, last: Boolean = false) {
+    val c = LocalColors.current
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(label, fontSize = 13.sp, color = c.muted)
+            Text(
+                value,
+                style = NumberStyle,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = valueColor ?: c.ink,
+            )
+        }
+        if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+    }
+}
+
+/** 带左侧墨绿竖条的说明块。用来放「怎么读这几个数」这类解释 */
+@Composable
+fun Callout(title: String, body: String, modifier: Modifier = Modifier) {
+    val c = LocalColors.current
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp)
+            .height(IntrinsicSize.Min)   // 让左边那条竖线能跟着文字高度撑满
+            .clip(RoundedCornerShape(10.dp))
+            .background(c.paper)
+            .border(1.dp, c.line, RoundedCornerShape(10.dp)),
+    ) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(c.burn))
+        Column(Modifier.padding(14.dp)) {
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
+            Text(
+                body,
+                modifier = Modifier.padding(top = 6.dp),
+                fontSize = 13.sp,
+                lineHeight = 22.sp,
+                color = c.muted,
+            )
+        }
+    }
+}
+
+/** 实心主按钮 */
+@Composable
+fun SolidButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    background: Color? = null,
+) {
+    val c = LocalColors.current
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(background ?: c.burn)
+            .clickable(onClick = onClick)
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (c.isDark) Color(0xFF08120F) else Color.White,
         )
     }
 }

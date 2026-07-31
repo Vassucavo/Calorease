@@ -90,9 +90,29 @@ fun App(
                     onDeleteFood = { repo.deleteFood(it) },
                 )
 
-                Tab.Weight -> ComingSoon("体重", "趋势线和体脂记录还在搬")
-                Tab.Tune -> ComingSoon("校准", "三道守卫的逻辑已经写好并测过,界面还在搬")
-                Tab.Logs -> ComingSoon("记录", "历史列表还在搬")
+                Tab.Weight -> WeightScreen(
+                    state = state,
+                    onAdd = { /* 表单面板下一步接上 */ },
+                    onEdit = { },
+                    onDelete = { repo.deleteWeight(it) },
+                )
+
+                Tab.Tune -> TuneScreen(
+                    state = state,
+                    onApplyTarget = { value ->
+                        repo.setTarget(value, netMode = false)
+                        tab = Tab.Today
+                    },
+                )
+
+                Tab.Logs -> LogsScreen(
+                    state = state,
+                    onOpenDay = { key ->
+                        repo.openDate(key)
+                        tab = Tab.Today
+                    },
+                )
+
                 Tab.Settings -> ComingSoon("设置", "身体数据、目标、备份还在搬")
             }
         }
