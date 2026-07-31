@@ -81,6 +81,14 @@ jobs:
               exit 1 ;;
           esac
 
+          # 食物库是靠一个 Copy 任务从仓库根目录搬进 assets 的。这条链断了的话
+          # 应用照样能装能用,只是搜不到任何食物 —— 要装到手机上才会发现。
+          # 发布之前确认它在包里。
+          if ! unzip -l "$APK" | grep -q 'assets/foods.json'; then
+            echo "::error::APK 里没有 assets/foods.json,食物库没打进去,不发布这个包。"
+            exit 1
+          fi
+
           cp "$APK" "$GITHUB_WORKSPACE/out/calorease.apk"
           echo "Copied $APK"
           ls -la "$GITHUB_WORKSPACE/out"

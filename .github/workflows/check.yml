@@ -48,6 +48,21 @@ jobs:
         if: steps.probe.outputs.native == 'yes'
         run: gradle assembleDebug --no-daemon --stacktrace
 
+      # 构建成功只说明 Gradle 任务跑完了,不说明 foods.json 真的进了包。
+      # 它是靠一个 Copy 任务从仓库根目录搬进 assets 的,这条链一旦断了,
+      # 应用照样能装能用,只是搜不到任何食物 —— 要装到手机上才会发现。
+      - name: 食物库确实打进包里了
+        if: steps.probe.outputs.native == 'yes'
+        run: |
+          set -e
+          APK=$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -1)
+          if ! unzip -l "$APK" | grep -q 'assets/foods.json'; then
+            echo "::error::APK 里没有 assets/foods.json,食物库没打进去。"
+            unzip -l "$APK" | grep assets/ || echo "(包里一个 asset 都没有)"
+            exit 1
+          fi
+          echo "assets/foods.json 在包里。"
+
       - name: 失败时把测试报告捞出来
         if: failure() && steps.probe.outputs.native == 'yes'
         uses: actions/upload-artifact@v4
