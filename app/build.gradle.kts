@@ -52,6 +52,15 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
+            // 调试版单独算一个应用,和手机上装着的正式版并存。
+            //
+            // 不加这个后缀的话,从电脑上按 Run 装不进去:包名一样但签名不一样
+            // (正式版用的是仓库密钥,调试版用的是本机自动生成的调试密钥),
+            // 系统会以 INSTALL_FAILED_UPDATE_INCOMPATIBLE 拒绝安装,
+            // 除非先把正式版连数据一起卸掉。
+            //
+            // 分开还有个好处:调试时乱填的数据不会弄脏你真正在记的那一份。
+            applicationIdSuffix = ".debug"
         }
         release {
             isMinifyEnabled = false
