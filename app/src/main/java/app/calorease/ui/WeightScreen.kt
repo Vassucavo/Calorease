@@ -33,7 +33,6 @@ import kotlin.math.abs
 @Composable
 fun WeightScreen(
     state: Repository.AppState,
-    onAdd: () -> Unit,
     onEdit: (String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
@@ -71,11 +70,7 @@ fun WeightScreen(
             BodyComposition(trend = Calibration.leanTrend(state.weights))
         }
 
-        SolidButton("记录体重", onClick = onAdd)
-        Note(
-            "尽量固定时间称，最好早上起床后。日常水分和食物造成的波动远大于真正的脂肪变化 —— " +
-                "看那条实线，不要看散点。体脂率可以留空，不影响其他功能。"
-        )
+        // 「记录体重」不在这里 —— 它和今日页的「添加餐食」一样固定在屏幕底部,见 App.kt
 
         SectionHeader("全部记录", "${state.weights.size} 条", mono = false)
 
@@ -151,11 +146,6 @@ private fun BodyComposition(trend: List<Calibration.TrendPoint>) {
         }
         Callout("怎么读这几个数", verdict)
     }
-
-    Note(
-        "家用体脂秤走的是生物电阻抗，受水分、进食、体温影响很大，绝对值可能偏差 5 个百分点以上 —— " +
-            "别太当真那个百分比。有价值的是同一台秤、同样条件下的变化方向，以及由它算出的瘦体重。"
-    )
 }
 
 /**

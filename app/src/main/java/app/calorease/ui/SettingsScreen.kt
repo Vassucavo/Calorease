@@ -28,18 +28,14 @@ import app.calorease.logic.Nutrition
 import app.calorease.ui.theme.LocalColors
 import kotlin.math.abs
 
-/**
- * 设置页:身体数据、选项、我的食物、备份。
- *
- * 备份那一段的文案是刻意写重的 —— 数据只在这台手机上,没有云端兜底,
- * 用户必须清楚这一点。
- */
+/** 设置页:身体数据、选项、我的食物、备份 */
 @Composable
 fun SettingsScreen(
     state: Repository.AppState,
     onEditProfile: () -> Unit,
     onEditTarget: () -> Unit,
     onToggleProtein: () -> Unit,
+    onToggleActiveIncludes: () -> Unit,
     onDeleteMine: (String) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
@@ -65,6 +61,11 @@ fun SettingsScreen(
             sub = "每样食物多一个可选字段",
             onTap = onToggleProtein,
             action = { Toggle(on = p?.showProtein == true) },
+        )
+        ItemRow(
+            name = "活动消耗已包含运动",
+            onTap = onToggleActiveIncludes,
+            action = { Toggle(on = p?.activeIncludesWorkouts == true) },
         )
         ItemRow(
             name = "每日热量目标",
@@ -99,14 +100,8 @@ fun SettingsScreen(
         }
 
         SectionHeader("备份")
-        Note(
-            "所有数据只存在这台手机上，不会上传到任何地方。正因如此，卸载应用或清除数据就等于全部丢失 —— " +
-                "定期导出一份留着。正常的版本更新不会影响数据。"
-        )
-        GhostButton("导出数据", onClick = onExport, modifier = Modifier.padding(top = 10.dp))
+        GhostButton("导出数据", onClick = onExport, modifier = Modifier.padding(top = 4.dp))
         GhostButton("从备份恢复", onClick = onImport, modifier = Modifier.padding(top = 8.dp))
-        Note("恢复时可以选“覆盖”或“合并”。合并保留两边记录，冲突时以备份为准。")
-
     }
 }
 

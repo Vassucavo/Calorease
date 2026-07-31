@@ -113,12 +113,12 @@ object Validate {
         return Checked.Valid(name to kcal)
     }
 
-    /** 手表当天的活动卡路里 */
+    /** 当天的活动消耗 */
     fun watchActive(raw: String): Checked<Int> {
         val text = raw.trim()
         if (text.isEmpty()) return Checked.Valid(0)
         val v = text.toDoubleOrNull()?.roundToInt() ?: return invalid("请输入一个数字。")
-        if (v < 0) return invalid("活动卡路里不会是负数。")
+        if (v < 0) return invalid("活动消耗不会是负数。")
         if (v > 10000) return invalid("超过 10000 千卡不太现实，请重新确认。")
         return Checked.Valid(v)
     }

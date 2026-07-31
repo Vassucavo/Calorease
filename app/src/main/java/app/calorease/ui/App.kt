@@ -51,6 +51,9 @@ import app.calorease.ui.theme.pageBackground
  * 五个标签页。每个带一个图标、一个底栏文字,以及页面顶部的「眉标 / 大标题」。
  * 这些文字和网页版 render() 里那张 T 表一一对应。
  */
+/** 固定按钮那一段的淡出高度。按钮高约 44,加上上下留白差不多是这个数 */
+private val PinnedFade = 72.dp
+
 enum class Tab(val label: String, val icon: VectorIcon, val eyebrow: String, val title: String) {
     Today("今天", Icons.Today, "Calorease", ""),           // 标题是当天日期,运行时填
     Weight("体重", Icons.Weight, "体重", "趋势"),
@@ -136,17 +139,24 @@ fun App(
             .blur(if (overlayOpen) 20.dp else 0.dp),
     ) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            // 今天和体重两页底部各有一个固定按钮。内容要多留出它的高度,
+            // 否则最后一条会被压在按钮底下 —— 摄入的最后一条、全部记录的最后一条
+            // 都是这么丢的。
+            val pinned = tab == Tab.Today || tab == Tab.Weight
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.statusBars)
+                    // 内容在按钮那一段淡出。用的是 alpha 遮罩而不是一条渐变色带 ——
+                    // 页面底色是四层渐变叠出来的,没有哪一个固定色值能和它对上,
+                    // 拿色带盖必然穿帮。淡出露出来的就是页面本身,永远同色。
+                    .then(if (pinned) Modifier.fadeOutBottom(PinnedFade) else Modifier)
                     .verticalScroll(rememberScrollState())
                     .padding(
                         start = Dimens.screenPadding,
                         end = Dimens.screenPadding,
                         top = Dimens.screenPadding,
-                        // 今日页右下角有添加餐食的按钮,底部多留一截别让它盖住最后一条
-                        bottom = if (tab == Tab.Today) 88.dp else 24.dp,
+                        bottom = if (pinned) 84.dp else 24.dp,
                     ),
             ) {
                 Column {
@@ -168,7 +178,6 @@ fun App(
 
                     Tab.Weight -> WeightScreen(
                         state = state,
-                        onAdd = { sheet = Sheet.AddWeight },
                         onEdit = { sheet = Sheet.EditWeight(it) },
                         onDelete = { repo.deleteWeight(it) },
                     )
@@ -194,6 +203,7 @@ fun App(
                         onEditProfile = { sheet = Sheet.EditProfile },
                         onEditTarget = { sheet = Sheet.Target },
                         onToggleProtein = { repo.toggleProtein() },
+                        onToggleActiveIncludes = { repo.toggleActiveIncludesWorkouts() },
                         onDeleteMine = { repo.deleteMine(it) },
                         onExport = { exportLauncher.launch(Backup.fileName(Dates.today())) },
                         onImport = { importLauncher.launch(arrayOf("*/*")) },
@@ -202,22 +212,29 @@ fun App(
                 }
             }
 
-            if (tab == Tab.Today) {
-                // 整宽的深墨按钮,贴在标签栏上方 —— 网页版的 .fab 就是这个样子,
-                // 不是右下角的小药丸。浮层打开时 Dialog 会盖住它。
-                InkButton(
+            // 整宽的按钮,贴在标签栏上方 —— 网页版的 .fab 就是这个样子,
+            // 不是右下角的小药丸。
+            val pinnedModifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = Dimens.screenPadding)
+                .padding(bottom = 14.dp)
+                .shadow(
+                    elevation = 10.dp,
+                    shape = RoundedCornerShape(10.dp),
+                    spotColor = Color(0x3818241E),
+                )
+            when (tab) {
+                Tab.Today -> InkButton(
                     "添加餐食",
                     onClick = { sheet = Sheet.AddFood },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = Dimens.screenPadding)
-                        .padding(bottom = 14.dp)
-                        .shadow(
-                            elevation = 10.dp,
-                            shape = RoundedCornerShape(10.dp),
-                            spotColor = Color(0x3818241E),
-                        ),
+                    modifier = pinnedModifier,
                 )
+                Tab.Weight -> SolidButton(
+                    "记录体重",
+                    onClick = { sheet = Sheet.AddWeight },
+                    modifier = pinnedModifier,
+                )
+                else -> Unit
             }
         }
 
@@ -264,7 +281,9 @@ private fun BoxScope.RenderSheet(
             mine = state.mine,
             curDate = state.curDate,
             onDismiss = onClose,
-            onAdd = { name, kcal, protein -> repo.addFood(name, kcal, protein) },
+            onAdd = { name, kcal, protein, amount, unit ->
+                repo.addFood(name, kcal, protein, amount, unit)
+            },
             onRemember = { repo.rememberFood(it) },
             onTouch = { repo.touchFood(it) },
         )
