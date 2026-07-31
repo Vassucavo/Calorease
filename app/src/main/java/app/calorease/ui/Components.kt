@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -75,9 +76,20 @@ fun Card(
     )
 }
 
-/** 段落小标题。右边可以挂一个数字(消耗/摄入的合计) */
+/**
+ * 段落小标题。右边可以挂一段尾字。
+ *
+ * 两种尾字在网页版里长得不一样:消耗/摄入的合计是 `class="num"` 加强调色 ——
+ * 等宽、加粗;而「我的食物 0 条」这种计数是内联的 `font-weight:400` 普通文字。
+ * [mono] 用来区分这两种。
+ */
 @Composable
-fun SectionHeader(title: String, trailing: String? = null, trailingColor: Color? = null) {
+fun SectionHeader(
+    title: String,
+    trailing: String? = null,
+    trailingColor: Color? = null,
+    mono: Boolean = true,
+) {
     val c = LocalColors.current
     Row(
         modifier = Modifier
@@ -96,9 +108,9 @@ fun SectionHeader(title: String, trailing: String? = null, trailingColor: Color?
         if (trailing != null) {
             Text(
                 trailing,
-                style = NumberStyle,
+                style = if (mono) NumberStyle else LocalTextStyle.current,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = if (mono) FontWeight.SemiBold else FontWeight.Normal,
                 color = trailingColor ?: c.muted,
             )
         }

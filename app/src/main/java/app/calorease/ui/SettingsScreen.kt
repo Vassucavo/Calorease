@@ -39,7 +39,6 @@ fun SettingsScreen(
     onEditProfile: () -> Unit,
     onEditTarget: () -> Unit,
     onToggleProtein: () -> Unit,
-    onToggleGlass: () -> Unit,
     onDeleteMine: (String) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
@@ -67,12 +66,6 @@ fun SettingsScreen(
             action = { Toggle(on = p?.showProtein == true) },
         )
         ItemRow(
-            name = "玻璃质感",
-            sub = "半透明的面和柔和的光。关掉会省一点电",
-            onTap = onToggleGlass,
-            action = { Toggle(on = p?.glass ?: true) },
-        )
-        ItemRow(
             name = "每日热量目标",
             sub = when {
                 p == null || p.target == 0 -> "未设置 —— 校准页可以帮你算"
@@ -85,7 +78,7 @@ fun SettingsScreen(
             },
         )
 
-        SectionHeader("我的食物", "${state.mine.size} 条")
+        SectionHeader("我的食物", "${state.mine.size} 条", mono = false)
         if (state.mine.isEmpty()) {
             EmptyHint("自己录入过的食物会存在这里,下次一键复用。")
         } else {

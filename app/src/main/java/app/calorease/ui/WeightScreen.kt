@@ -77,7 +77,7 @@ fun WeightScreen(
                 "看那条实线,不要看散点。体脂率可以留空,不影响其他功能。"
         )
 
-        SectionHeader("全部记录", "${state.weights.size} 条")
+        SectionHeader("全部记录", "${state.weights.size} 条", mono = false)
 
         if (state.weights.isEmpty()) {
             EmptyHint(

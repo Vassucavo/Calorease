@@ -193,7 +193,6 @@ fun App(
                         onEditProfile = { sheet = Sheet.EditProfile },
                         onEditTarget = { sheet = Sheet.Target },
                         onToggleProtein = { repo.toggleProtein() },
-                        onToggleGlass = { repo.setGlass(!(state.profile?.glass ?: true)) },
                         onDeleteMine = { repo.deleteMine(it) },
                         onExport = { exportLauncher.launch(Backup.fileName(Dates.today())) },
                         onImport = { importLauncher.launch(arrayOf("*/*")) },
