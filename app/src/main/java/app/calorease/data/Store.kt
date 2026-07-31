@@ -1,6 +1,7 @@
 package app.calorease.data
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
 import java.io.File
 
 /**
@@ -27,14 +28,18 @@ class Store(private val dir: File) {
     private inline fun <reified T> read(key: String, fallback: T): T {
         val f = fileFor(key)
         if (!f.exists()) return fallback
-        return runCatching { json.decodeFromString<T>(f.readText()) }.getOrElse { fallback }
+        return runCatching { json.decodeFromString(serializer<T>(), f.readText()) }
+            .getOrElse { fallback }
     }
 
+    // 序列化器显式传进去。写成单参数的 json.encodeToString(value) 时,
+    // 在 reified 泛型里编译器会去匹配 encodeToString(serializer, value) 那个重载,
+    // 把 value 当成序列化器,报一串看不懂的类型错误。
     private inline fun <reified T> write(key: String, value: T): Boolean = runCatching {
         if (!dir.exists()) dir.mkdirs()
         val target = fileFor(key)
         val tmp = File(dir, "${target.name}.tmp")
-        tmp.writeText(json.encodeToString(value))
+        tmp.writeText(json.encodeToString(serializer<T>(), value))
         if (target.exists()) target.delete()
         tmp.renameTo(target)
     }.isSuccess
