@@ -1,6 +1,6 @@
 {
-  "name": "Ledger — Calorie Tracker",
-  "short_name": "Ledger",
+  "name": "Calorease — Calorie Tracker",
+  "short_name": "Calorease",
   "description": "Track calories eaten and burned, with your resting burn calculated automatically.",
   "start_url": "./",
   "scope": "./",

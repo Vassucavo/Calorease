@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#E4EAE3">
-<title>记账本</title>
+<title>Calorease</title>
 <link rel="manifest" href="./manifest.json">
 <style>
 :root{
@@ -295,7 +295,7 @@ body.glass .seg button.on{
 <script>
 "use strict";
 /* =====================================================================
-   记账本 v4  —— 本地运行,数据只存在这台手机上
+   Calorease v8  —— 本地运行,数据只存在这台手机上
    消耗 = 基础代谢(Mifflin-St Jeor) + 手表活动卡路里
    校准 = 用实际体重变化反推真实消耗
    注意:全局变量绝不能叫 history / location / name 等,
@@ -792,7 +792,7 @@ function render(){
   }).join("");
   document.getElementById("fab").className = view==="today" ? "fab" : "fab hide";
 
-  const T = { today:["记账本",cnFull(curDate)], weight:["体重","趋势"],
+  const T = { today:["Calorease",cnFull(curDate)], weight:["体重","趋势"],
     tune:["校准","你身体给出的真实数字"], logs:["记录","历史"],
     settings:["设置","偏好与备份"] }[view];
   document.getElementById("app").innerHTML =
@@ -1221,7 +1221,7 @@ function exportData(){
   const dump={v:4,exported:new Date().toISOString(),profile:profile,mine:mine,
     history:logs,weights:weights,days:{}};
   Object.keys(logs).forEach(function(k){ const d=load(K.day(k),null); if(d) dump.days[k]=d; });
-  const text=JSON.stringify(dump,null,2), name="ledger-"+todayKey()+".json";
+  const text=JSON.stringify(dump,null,2), name="calorease-"+todayKey()+".json";
   if(isNative()){ Android.saveBackup(name,text); return; }
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([text],{type:"application/json"}));

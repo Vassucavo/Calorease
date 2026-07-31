@@ -49,6 +49,12 @@ jobs:
           [ -f manifest.json ] && cp manifest.json android/app/src/main/assets/ || true
           [ -f icon-192.png ] && cp icon-192.png android/app/src/main/assets/ || true
           [ -f icon-512.png ] && cp icon-512.png android/app/src/main/assets/ || true
+          # 启动图标是必需的。前面几行都有 [ -f ] 守卫,这一行以前没有,
+          # 缺文件时会因为 set -e 直接中断,报错信息还看不出是图标的问题。
+          if [ ! -f icon-512.png ]; then
+            echo "::error::icon-512.png 不在仓库里,没有它就没法生成启动图标。"
+            exit 1
+          fi
           cp icon-512.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
           # --- settings.gradle ---
@@ -59,7 +65,7 @@ jobs:
           dependencyResolutionManagement {
               repositories { google(); mavenCentral() }
           }
-          rootProject.name = "Ledger"
+          rootProject.name = "Calorease"
           include ':app'
           EOF
 
@@ -86,7 +92,21 @@ jobs:
           def ksPath = System.getenv("KEYSTORE_PATH")
           def hasKs = ksPath != null && !ksPath.isEmpty() && file(ksPath).exists()
 
+          // versionCode 偏移量。
+          //
+          // 旧仓库 Vassucavo/Ledger 最后发布的是 v13,也就是手机上装着的那版
+          // versionCode = 13。换到 Calorease 这个新仓库之后 github.run_number
+          // 从 1 重新开始,直接拿来当 versionCode 就是 1 < 13 —— 安卓不允许用更低的
+          // versionCode 覆盖安装,会报 INSTALL_FAILED_VERSION_DOWNGRADE。
+          // 加 20 的偏移,第一次构建就是 21,稳稳高于 13。这个数字只能往上加,永远不要调小。
+          def CODE_OFFSET = 20
+          def runNo = (System.getenv("RUN_NUMBER") ?: "0").toInteger()
+
           android {
+              // namespace / applicationId 必须永远是 app.ledger。
+              // 包名是安卓判断「这是不是同一个应用」的唯一依据,改掉就等于发布了一个
+              // 全新应用:装上去和旧版并存,旧数据一条都带不过来,而且旧版再也无法更新。
+              // 仓库和界面叫 Calorease,包名不跟着改 —— 用户永远看不到包名。
               namespace 'app.ledger'
               compileSdk 34
 
@@ -94,8 +114,8 @@ jobs:
                   applicationId "app.ledger"
                   minSdk 21
                   targetSdk 34
-                  versionCode System.getenv("RUN_NUMBER") ? System.getenv("RUN_NUMBER").toInteger() : 1
-                  versionName "3.0." + (System.getenv("RUN_NUMBER") ?: "0")
+                  versionCode runNo + CODE_OFFSET
+                  versionName "8.0." + (runNo + CODE_OFFSET)
               }
 
               signingConfigs {
@@ -153,7 +173,7 @@ jobs:
           cat > android/app/src/main/res/values/strings.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <string name="app_name">Ledger</string>
+              <string name="app_name">Calorease</string>
           </resources>
           EOF
 
@@ -404,8 +424,10 @@ jobs:
       - name: Attach it to a release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: 记账本 v${{ github.run_number }}
+          # +20 要和 app/build.gradle 里的 CODE_OFFSET 保持一致,
+          # 这样 release 的 tag、应用里显示的版本号、versionCode 是同一个数。
+          tag_name: v${{ github.run_number + 20 }}
+          name: Calorease v${{ github.run_number + 20 }}
           body: |
             点下方的 **ledger.apk** 安装。
 
