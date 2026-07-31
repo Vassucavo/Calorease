@@ -55,7 +55,7 @@ jobs:
           # 整个 run 块做表达式替换,不管那串东西在 shell 里是不是注释。
           #
           # 偏移量要和 app/build.gradle.kts 里的 codeOffset 保持一致。
-          echo "APP_VERSION=$((GITHUB_RUN_NUMBER + 20))" >> $GITHUB_ENV
+          echo "APP_VERSION=$((GITHUB_RUN_NUMBER + 20))" >> "$GITHUB_ENV"
 
           # 输出目录建在仓库根目录。以前这里踩过一次:先 cd 再 mkdir,
           # 目录建到了子目录里,而复制目标指向根目录,Gradle 显示成功但 job 失败。
@@ -67,14 +67,14 @@ jobs:
             echo "Signing with the permanent key."
             gradle assembleRelease --no-daemon --stacktrace
             SRC_DIR=app/build/outputs/apk/release
-            echo "SIGNED=yes" >> $GITHUB_ENV
+            echo "SIGNED=yes" >> "$GITHUB_ENV"
           else
             echo "::warning::No KEYSTORE_BASE64 secret found — falling back to a debug key."
             echo "::warning::Debug keys differ on every run, so this build cannot be installed"
             echo "::warning::over an existing copy without uninstalling first (which erases data)."
             gradle assembleDebug --no-daemon --stacktrace
             SRC_DIR=app/build/outputs/apk/debug
-            echo "SIGNED=no" >> $GITHUB_ENV
+            echo "SIGNED=no" >> "$GITHUB_ENV"
           fi
 
           echo "Looking for the APK in $SRC_DIR"

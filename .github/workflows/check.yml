@@ -44,9 +44,9 @@ jobs:
         id: probe
         run: |
           if [ -f settings.gradle.kts ]; then
-            echo "native=yes" >> $GITHUB_OUTPUT
+            echo "native=yes" >> "$GITHUB_OUTPUT"
           else
-            echo "native=no" >> $GITHUB_OUTPUT
+            echo "native=no" >> "$GITHUB_OUTPUT"
             echo "仓库里还没有原生工程,跳过。"
           fi
 
