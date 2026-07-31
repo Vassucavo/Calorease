@@ -15,19 +15,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.calorease.data.Food
@@ -74,8 +81,18 @@ fun BoxScope.AddFoodSheet(
     BottomSheet(
         title = "添加餐食",
         onDismiss = onDismiss,
-        // 搜索页要用带吸顶头的列表,自己管滚动;其余分页交给浮层滚
-        scrollable = picked != null || tab != AddTab.Search,
+        // 里面每一屏都自己管滚动:搜索页要让搜索框固定、只滚下面的列表,
+        // 交给浮层统一滚的话搜索框会跟着一起跑。
+        scrollable = false,
+        // 三个分页的自然高度差得很多(营养标签最长,搜索最短),不固定的话
+        // 一切分页整个面板就忽上忽下地跳。统一按最长的那页定高。
+        heightFraction = 0.86f,
+        // 左右内边距挪到下面各自加 —— 搜索列表要画**整宽**的渐变遮盖条,
+        // 遮盖条得贴着页面左右边缘,才不会从两侧漏出条目的投影。
+        contentPadding = 0.dp,
+        // 食物列表要一直铺到面板底部、从渐变收边底下穿过去才淡得出去。
+        // 其余几屏各自在末尾留出这段距离(见 TabBody / PickedDetail)。
+        contentBottomPadding = 0.dp,
     ) {
         val p = picked
         if (p != null) {
@@ -91,33 +108,61 @@ fun BoxScope.AddFoodSheet(
                 },
             )
         } else {
-            SheetTabs(
-                options = AddTab.entries.map { it.label },
-                selectedIndex = tab.ordinal,
-                onSelect = { tab = AddTab.entries[it] },
-            )
-            when (tab) {
-                AddTab.Search -> SearchTab(mine = mine, onPick = { picked = it })
-                AddTab.Quick -> QuickTab(
-                    showProtein = profile?.showProtein == true,
-                    onCommit = { food, kcal, protein, save ->
-                        if (save) onRemember(food)
-                        onAdd(food.name, kcal, protein)
-                        onDismiss()
-                    },
-                )
-                AddTab.Label -> LabelTab(
-                    showProtein = profile?.showProtein == true,
-                    onCommit = { food, kcal, protein, save ->
-                        if (save) onRemember(food)
-                        onAdd(food.name, kcal, protein)
-                        onDismiss()
-                    },
-                )
+            Column(modifier = Modifier.fillMaxSize()) {
+                Column(modifier = Modifier.padding(horizontal = SheetPad)) {
+                    SheetTabs(
+                        options = AddTab.entries.map { it.label },
+                        selectedIndex = tab.ordinal,
+                        onSelect = { tab = AddTab.entries[it] },
+                    )
+                }
+                when (tab) {
+                    AddTab.Search -> SearchTab(mine = mine, onPick = { picked = it })
+                    AddTab.Quick -> TabBody {
+                        QuickTab(
+                            showProtein = profile?.showProtein == true,
+                            onCommit = { food, kcal, protein, save ->
+                                if (save) onRemember(food)
+                                onAdd(food.name, kcal, protein)
+                                onDismiss()
+                            },
+                        )
+                    }
+                    AddTab.Label -> TabBody {
+                        LabelTab(
+                            showProtein = profile?.showProtein == true,
+                            onCommit = { food, kcal, protein, save ->
+                                if (save) onRemember(food)
+                                onAdd(food.name, kcal, protein)
+                                onDismiss()
+                            },
+                        )
+                    }
+                }
             }
         }
     }
 }
+
+/** 面板固定高之后,除搜索页外的内容都可能比面板长,各自滚 */
+@Composable
+private fun ColumnScope.TabBody(content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = SheetPad)
+            .padding(bottom = SheetTail)
+    ) {
+        content()
+    }
+}
+
+/** 浮层内容的左右内边距。BottomSheet 的默认值,这里手动加回来 */
+private val SheetPad = 18.dp
+
+/** 末尾要给底部那条渐变收边让出的距离,免得按钮被盖住 */
+private val SheetTail = 26.dp
 
 /** 选中一条食物之后:快捷份量 + 自由输入 + 实时预览 */
 @Composable
@@ -136,7 +181,13 @@ private fun PickedDetail(
     val kcal = Nutrition.scale(food.kcal.toDouble(), amount, isGram)
     val protein = Nutrition.scale(food.protein, amount, isGram)
 
-    Column {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = SheetPad)
+            .padding(bottom = SheetTail)
+    ) {
         Card(modifier = Modifier.padding(bottom = 14.dp)) {
             Text(food.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
             Text(
@@ -197,64 +248,69 @@ private fun PickedDetail(
 /**
  * 搜索。搜索框空着时铺开整个内置食物库(按分类分组),自建过的排在最前面。
  *
- * 搜索框是**吸顶**的:列表往上滚时它停在顶部不动。滚动开始之后,
- * 它下面会淡入一条「上实下透」的渐变,让滚过去的内容自然消失在它底下 ——
- * 网页版靠 position:sticky 加一个 opacity 从 0 淡入的 ::before 实现,
- * 这里用 stickyHeader 加一层随滚动状态淡入的渐变底。
+ * 搜索框**完全不动**:它在列表外面,不是 stickyHeader。之前用吸顶头,
+ * 滚到列表末尾时它会跟着一起被弹性拉动 —— 看着就不像固定的。现在它是
+ * 面板上一个静止的元素,列表只在它下面滚。
  *
- * 网页版当初特意做成「不滚动时完全透明」,是因为固定色值的渐变没法和
- * 半透明面板精确对色,一有色差就会出现接缝(错误档案第 11 条)。
- * 让它平时消失,就绕开了这个问题 —— 这里沿用同一招。
+ * 列表顶端有一条「上实下透」的渐变,滚起来才淡入,让滑上去的条目消失在
+ * 搜索框底下而不是硬生生地被切断。渐变**贯通整个面板宽度**,列表自己带
+ * 左右内边距 —— 不然条目的投影会从遮盖条两侧漏出来。
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SearchTab(mine: List<Food>, onPick: (Food) -> Unit) {
+private fun ColumnScope.SearchTab(mine: List<Food>, onPick: (Food) -> Unit) {
     val c = LocalColors.current
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     val groups = Foods.grouped(context, query, mine)
 
     val listState = rememberLazyListState()
-    val stuck by remember {
+    val scrolled by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
         }
     }
-    val fade by animateFloatAsState(if (stuck) 1f else 0f, label = "stick")
+    val fade by animateFloatAsState(if (scrolled) 1f else 0f, label = "topFade")
 
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-        stickyHeader {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .drawBehind {
-                        if (fade <= 0f) return@drawBehind
-                        drawRect(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0f to c.panelBg.copy(alpha = c.panelBg.alpha * fade),
-                                    0.56f to c.panelBg.copy(alpha = c.panelBg.alpha * fade),
-                                    1f to Color.Transparent,
-                                )
-                            )
-                        )
+    Column(modifier = Modifier.padding(horizontal = SheetPad)) {
+        Field(label = "", value = query, onChange = { query = it }, placeholder = "搜索食物…")
+    }
+
+    Box(modifier = Modifier.weight(1f)) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            // 左右内边距给列表自己,而不是给外面的容器 —— 遮盖条要整宽,
+            // 条目要缩进,两件事必须分开。
+            contentPadding = PaddingValues(start = SheetPad, end = SheetPad, bottom = 10.dp),
+        ) {
+            if (groups.isEmpty()) {
+                item { EmptyHint("没找到。用“快速录入”自己填一条，填完会存起来。") }
+            } else {
+                groups.forEach { g ->
+                    item(key = "head-" + g.title) { GroupHead(g.title) }
+                    items(g.items, key = { it.id ?: (g.title + it.name) }) { f ->
+                        PickRow(f, isMine = g.fromMine, onPick = onPick)
                     }
-                    .padding(bottom = 8.dp),
-            ) {
-                Field(label = "", value = query, onChange = { query = it }, placeholder = "搜索食物…")
-            }
-        }
-
-        if (groups.isEmpty()) {
-            item { EmptyHint("没找到。用“快速录入”自己填一条，填完会存起来。") }
-        } else {
-            groups.forEach { g ->
-                item(key = "head-" + g.title) { GroupHead(g.title) }
-                items(g.items, key = { it.id ?: (g.title + it.name) }) { f ->
-                    PickRow(f, isMine = g.fromMine, onPick = onPick)
                 }
             }
         }
+        // 顶端的渐变收边。和浮层底部那条是同一套做法,只是方向反过来。
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(18.dp)
+                .drawBehind {
+                    if (fade <= 0f) return@drawBehind
+                    drawRect(
+                        Brush.verticalGradient(
+                            0f to c.panelSolid.copy(alpha = fade),
+                            0.5f to c.panelSolid.copy(alpha = 0.88f * fade),
+                            1f to Color.Transparent,
+                        )
+                    )
+                }
+        )
     }
 }
 
@@ -271,17 +327,49 @@ private fun GroupHead(title: String) {
     )
 }
 
-/** `.pick` —— 和普通条目同尺寸,副行写计量方式,自建的多一个「已保存」标 */
+/**
+ * `.pick` —— 一条可选的食物。
+ *
+ * 排成**一行**:名称、计量方式、热量。之前计量方式是单独一行副文字,
+ * 每条就要占两行高;面板定高之后,一屏能看见的食物少了将近一半。
+ * 这三样都很短,并排放完全够用,信息一点没少,高度却省下三分之一。
+ */
 @Composable
 private fun PickRow(food: Food, isMine: Boolean, onPick: (Food) -> Unit) {
     val c = LocalColors.current
-    ItemRow(
-        name = food.name,
-        sub = (if (food.isPerHundredGrams) "每100g" else "每份") + if (isMine) " · 已保存" else "",
-        trailing = food.kcal.grouped(),
-        trailingColor = c.intake,
-        onTap = { onPick(food) },
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp)
+            .glassSurface(10.dp, c.rowBg)
+            .clickable { onPick(food) }
+            .padding(horizontal = 13.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            food.name,
+            modifier = Modifier.weight(1f),
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = c.ink,
+        )
+        Text(
+            (if (food.isPerHundredGrams) "每100g" else "每份") + if (isMine) " · 已保存" else "",
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = c.muted,
+        )
+        Text(
+            food.kcal.grouped(),
+            style = NumberStyle,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = c.intake,
+        )
+    }
 }
 
 /** 快速录入。配合「拍照问 AI 再手填」的流程 */

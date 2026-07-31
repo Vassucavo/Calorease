@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
@@ -32,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
@@ -65,8 +67,28 @@ import app.calorease.ui.theme.NumberStyle
 fun BoxScope.BottomSheet(
     title: String,
     onDismiss: () -> Unit,
-    /** 内容自己管滚动时传 false,比如搜索页要用带吸顶头的列表 */
+    /** 内容自己管滚动时传 false,比如添加餐食那个面板 */
     scrollable: Boolean = true,
+    /**
+     * 固定高度(占屏幕的比例)。给 null 就按内容高度长,内容多了才顶到上限。
+     *
+     * 添加餐食那个面板要传值:三个分页的自然高度差很多,不固定的话切换分页
+     * 面板会忽上忽下地跳。
+     */
+    heightFraction: Float? = null,
+    /**
+     * 内容区左右内边距。传 0 的话调用方自己加 —— 这样它就能画出**整宽**的
+     * 渐变遮盖条,盖住列表项左右两侧漏出来的投影。
+     */
+    contentPadding: Dp = 18.dp,
+    /**
+     * 内容区的下内边距,默认正好等于底部那条渐变收边的高度 —— 内容停在
+     * 渐变上沿,不会被盖到。
+     *
+     * 传 0 表示「让内容一直铺到面板底部,从渐变底下穿过去」。滚动的长列表
+     * 要这个:它得真的滑进渐变里才淡得出去,停在渐变上沿反而是硬切断。
+     */
+    contentBottomPadding: Dp = SheetBottomFade,
     content: @Composable () -> Unit,
 ) {
     val c = LocalColors.current
@@ -91,7 +113,10 @@ fun BoxScope.BottomSheet(
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
             // 和网页版的 max-height:94vh 对应,顶上永远留一条能点关闭的空隙
-            .heightIn(max = screenHeight * 0.94f)
+            .then(
+                if (heightFraction != null) Modifier.height(screenHeight * heightFraction)
+                else Modifier.heightIn(max = screenHeight * 0.94f)
+            )
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
             .background(c.panelBg)
             .clickable(
@@ -102,11 +127,13 @@ fun BoxScope.BottomSheet(
             .windowInsetsPadding(
                 WindowInsets.ime.union(WindowInsets.navigationBars).union(WindowInsets.statusBars)
             )
-            .padding(horizontal = 18.dp)
-            .padding(top = 18.dp, bottom = 22.dp),
+            .padding(top = 18.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp)
+                .padding(bottom = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -120,20 +147,49 @@ fun BoxScope.BottomSheet(
                 StrokeIcon(Icons.Close, color = c.muted, size = 20.dp, strokeWidth = 2f)
             }
         }
-        // 这里必须是 Column。之前为了挂滚动修饰符图省事用了 Box,而 Box 是
-        // 层叠布局 —— 调用方发的同级元素(比如三个分页 + 搜索列表)会直接
-        // 压在一起。「搜索食物」框和顶部分页重叠就是这么来的。
-        Column(
-            modifier = if (scrollable) {
-                Modifier.verticalScroll(rememberScrollState())
-            } else {
-                Modifier.weight(1f, fill = false)
-            }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                // 固定高度时内容要把剩下的空间占满,里面的列表才有地方伸展;
+                // 不固定高度时按内容长,长满了才顶到屏幕上限。
+                .weight(1f, fill = heightFraction != null)
         ) {
-            content()
+            // 这里必须是 Column。之前为了挂滚动修饰符图省事用了 Box,而 Box 是
+            // 层叠布局 —— 调用方发的同级元素(比如三个分页 + 搜索列表)会直接
+            // 压在一起。「搜索食物」框和顶部分页重叠就是这么来的。
+            Column(
+                modifier = Modifier
+                    .then(
+                        if (scrollable) Modifier.verticalScroll(rememberScrollState())
+                        else Modifier.fillMaxSize()
+                    )
+                    .padding(horizontal = contentPadding)
+                    .padding(bottom = contentBottomPadding)
+            ) {
+                content()
+            }
+            // 底部收边。之前这里是浮层的一段纯色内边距,内容滚到底会被它齐刷刷
+            // 切断,选中食物后还会压掉「返回列表」的一角。改成上透下实的渐变:
+            // 内容是淡出去的,而不是被切断的,收尾颜色又和面板一致,看不出有东西盖着。
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(SheetBottomFade)
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.55f to c.panelSolid.copy(alpha = 0.92f),
+                            1f to c.panelSolid,
+                        )
+                    )
+            )
         }
     }
 }
+
+/** 浮层底部那条渐变收边的高度。内容的下内边距也用它,免得正文被压住 */
+private val SheetBottomFade = 26.dp
 
 /**
  * 带标签的输入框。
