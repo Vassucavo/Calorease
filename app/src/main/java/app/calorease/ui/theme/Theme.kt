@@ -70,6 +70,15 @@ data class CaloreaseColors(
     /** 浮层、底栏这类顶层固定面 */
     val panelBg: Color,
     val panelBorder: Color,
+    /**
+     * [panelBg] 压在页面背景上之后**看上去**的那个颜色,不透明。
+     *
+     * 浮层顶/底的渐变遮盖条要用它:遮盖条画在内容**之上**,得真的把内容挡住,
+     * 直接拿半透明的 panelBg 去叠只会既挡不干净、又比周围的面更实。
+     * 这里预先把「panelBg 叠在页面底色上」的结果算好,渐变从透明推到它,
+     * 收尾处就和周围的面同色,看不出接缝。
+     */
+    val panelSolid: Color,
     /** 浮层背后的遮罩 */
     val scrim: Color,
 )
@@ -135,6 +144,8 @@ private val LightColors = CaloreaseColors(
     // 之前调到 0.94 是因为当时还没有模糊,面一透就只能看见清晰的内容,很脏。
     panelBg = Color(0xFFFAFCF8).copy(alpha = 0.74f),
     panelBorder = Color.White.copy(alpha = 0.62f),
+    // 0.74 的 #FAFCF8 压在页面底色(约 #DDE6DB)上算出来的结果
+    panelSolid = Color(0xFFF2F6F0),
     scrim = Color(0xFF18241E).copy(alpha = 0.30f),
 )
 
@@ -158,6 +169,7 @@ private val DarkColors = CaloreaseColors(
     surfaceBorder = Color(0xFF2E3A31),
     panelBg = Color(0xFF171E19),
     panelBorder = Color(0xFF2E3A31),
+    panelSolid = Color(0xFF171E19),
     scrim = Color(0xFF000000).copy(alpha = 0.55f),
 )
 
@@ -170,6 +182,7 @@ private val FlatLightColors = LightColors.copy(
     surfaceBorder = LightColors.line,
     panelBg = LightColors.canvas,
     panelBorder = LightColors.line,
+    panelSolid = LightColors.canvas,
     scrim = Color(0xFF18241E).copy(alpha = 0.5f),
 )
 

@@ -125,11 +125,25 @@ fun Modifier.glassSurface(
             )
 
             // 5) 内侧顶边高光 —— CSS 里的 inset 0 1px 0 rgba(255,255,255,.9)
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.55f),
-                topLeft = Offset(r * 0.5f, 0.5f),
-                size = Size(size.width - r, 1f),
-            )
+            //
+            // 只画在**直边**上。圆角的弧线在 x = r 处才与顶边相切,所以两端
+            // 各内缩一个 r。之前写的是 r/2,等于两端各多伸进弧线区域 r/2 ——
+            // 卡片圆角 16 就各超出 8dp,深色模式下对比强,一眼能看出来。
+            // 两端再做淡出:真玻璃的高光不会是齐头齐尾的硬线。
+            if (size.width > r * 2) {
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        0f to Color.Transparent,
+                        0.18f to Color.White.copy(alpha = 0.55f),
+                        0.82f to Color.White.copy(alpha = 0.55f),
+                        1f to Color.Transparent,
+                        startX = r,
+                        endX = size.width - r,
+                    ),
+                    topLeft = Offset(r, 0.5f),
+                    size = Size(size.width - r * 2, 1f),
+                )
+            }
 
             // 6) 极细描边
             drawRoundRect(
