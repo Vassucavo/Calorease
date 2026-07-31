@@ -1,0 +1,294 @@
+package app.calorease.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.calorease.data.Profile
+import app.calorease.data.WeightEntry
+import app.calorease.logic.Checked
+import app.calorease.logic.Dates
+import app.calorease.logic.Nutrition
+import app.calorease.logic.Validate
+import app.calorease.ui.theme.LocalColors
+
+/**
+ * 各种小表单。
+ *
+ * 全部遵守同一条规矩:**先跑校验,拿到 Checked.Valid 之后才调回调**。
+ * 校验函数是纯函数,拿不到可变状态,所以「校验失败但数据已经被改了」
+ * (错误档案第 10 条)这件事在结构上做不到。
+ */
+
+/** 手表活动卡路里 */
+@Composable
+fun WatchActiveSheet(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
+    var text by remember { mutableStateOf(if (current > 0) current.toString() else "") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    BottomSheet("手表活动卡路里", onDismiss) {
+        Column {
+            Field("千卡", text, { text = it }, numeric = true, placeholder = "0")
+            Note("填手表上「活动 / Move」那个数,不要填总消耗 —— 总消耗里已经包含基础代谢了,填进来会算两遍。")
+            FieldError(error)
+            SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
+                when (val v = Validate.watchActive(text)) {
+                    is Checked.Invalid -> error = v.message
+                    is Checked.Valid -> { onSave(v.value); onDismiss() }
+                }
+            })
+        }
+    }
+}
+
+/** 一条手动运动记录 */
+@Composable
+fun BurnSheet(
+    initialLabel: String = "",
+    initialKcal: Int = 0,
+    onDismiss: () -> Unit,
+    onSave: (String, Int) -> Unit,
+) {
+    var label by remember { mutableStateOf(initialLabel) }
+    var kcal by remember { mutableStateOf(if (initialKcal > 0) initialKcal.toString() else "") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    BottomSheet(if (initialLabel.isEmpty()) "添加运动" else "修改运动", onDismiss) {
+        Column {
+            Field("做了什么", label, { label = it }, placeholder = "跑步 30 分钟")
+            Field("消耗(千卡)", kcal, { kcal = it }, numeric = true, placeholder = "0")
+            Note("手表已经统计过的活动别再填一遍。这里适合记手表没戴、或者它没识别出来的运动。")
+            FieldError(error)
+            SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
+                when (val v = Validate.burn(label, kcal)) {
+                    is Checked.Invalid -> error = v.message
+                    is Checked.Valid -> { onSave(v.value.first, v.value.second); onDismiss() }
+                }
+            })
+        }
+    }
+}
+
+/** 改一条已经录进去的食物 */
+@Composable
+fun EditFoodSheet(
+    initialName: String,
+    initialKcal: Int,
+    initialProtein: Int,
+    showProtein: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String, Int, Int) -> Unit,
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var kcal by remember { mutableStateOf(initialKcal.toString()) }
+    var protein by remember { mutableStateOf(if (initialProtein > 0) initialProtein.toString() else "") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    BottomSheet("修改这一条", onDismiss) {
+        Column {
+            Field("名称", name, { name = it })
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Field("热量", kcal, { kcal = it }, modifier = Modifier.weight(1f), numeric = true)
+                if (showProtein) {
+                    Field("蛋白质(g)", protein, { protein = it }, modifier = Modifier.weight(1f), numeric = true)
+                }
+            }
+            FieldError(error)
+            SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
+                when (val v = Validate.food(name, kcal, protein)) {
+                    is Checked.Invalid -> error = v.message
+                    is Checked.Valid -> {
+                        val (n, k, p) = v.value
+                        onSave(n, k, p)
+                        onDismiss()
+                    }
+                }
+            })
+        }
+    }
+}
+
+/**
+ * 记录 / 修改体重。
+ *
+ * [existing] 有值时是修改模式,它原来的日期会作为 replaceDate 传出去 ——
+ * 改了日期的话旧那条要一起删掉,否则会变成两条。
+ */
+@Composable
+fun WeightSheet(
+    existing: WeightEntry?,
+    onDismiss: () -> Unit,
+    onSave: (WeightEntry, replaceDate: String?) -> Unit,
+) {
+    val c = LocalColors.current
+    var kg by remember { mutableStateOf(existing?.kg?.f1() ?: "") }
+    var bf by remember { mutableStateOf(existing?.bf?.f1() ?: "") }
+    var date by remember { mutableStateOf(existing?.date ?: Dates.today()) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    BottomSheet(if (existing == null) "记录体重" else "修改记录", onDismiss) {
+        Column {
+            Field("体重(kg)", kg, { kg = it }, decimal = true, placeholder = "70.0")
+            Field("体脂率(%,可留空)", bf, { bf = it }, decimal = true, placeholder = "留空也行")
+
+            Text("日期", fontSize = 12.sp, color = c.muted, modifier = Modifier.padding(bottom = 5.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                listOf(0L to "今天", -1L to "昨天", -2L to "前天").forEach { (offset, label) ->
+                    val key = Dates.shift(Dates.today(), offset)
+                    val on = date == key
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (on) c.burn else c.paper)
+                            .border(1.dp, if (on) c.burn else c.line, RoundedCornerShape(9.dp))
+                            .clickable { date = key }
+                            .padding(vertical = 9.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            label,
+                            fontSize = 13.sp,
+                            fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (on) (if (c.isDark) Color(0xFF08120F) else Color.White) else c.ink,
+                        )
+                    }
+                }
+            }
+            Field("或者直接填(YYYY-MM-DD)", date, { date = it })
+
+            Note("尽量固定时间称,最好早上起床后。以前记过的数据也能补录 —— 把日期改成当时那天就行。")
+            FieldError(error)
+
+            SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
+                // 校验全过了才动数据结构(错误档案第 10 条)
+                when (val v = Validate.weight(kg, date, bf)) {
+                    is Checked.Invalid -> error = v.message
+                    is Checked.Valid -> {
+                        onSave(v.value, existing?.date)
+                        onDismiss()
+                    }
+                }
+            })
+        }
+    }
+}
+
+/** 每日热量目标。两种模式,按结余时可以填负数 */
+@Composable
+fun TargetSheet(profile: Profile?, onDismiss: () -> Unit, onSave: (Int, Boolean) -> Unit) {
+    var netMode by remember { mutableStateOf(profile?.isNetMode == true) }
+    var text by remember { mutableStateOf(if ((profile?.target ?: 0) != 0) profile!!.target.toString() else "") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    BottomSheet("每日热量目标", onDismiss) {
+        Column {
+            Segmented(
+                options = listOf("按摄入", "按结余"),
+                selectedIndex = if (netMode) 1 else 0,
+                onSelect = { netMode = it == 1; error = null },
+            )
+            Field(
+                if (netMode) "每天结余(千卡,减重填负数)" else "每天摄入(千卡)",
+                text, { text = it },
+                // 按结余时要能打出负号。数字键盘在不少输入法上没有减号键,
+                // 所以这一档退回普通键盘 —— 宁可键盘丑一点,也不能让人填不进去。
+                decimal = !netMode,
+                placeholder = if (netMode) "-500" else "1800",
+            )
+            Note(
+                if (netMode) {
+                    "结余 = 摄入 − 消耗。减重填 −500,增重填 +300。可吃额度会随当天运动量浮动 —— " +
+                        "动得多就能多吃一点。绝对值上限 1500。"
+                } else {
+                    "固定每天吃多少,不随运动量变化。下限:女 1200 / 男 1500 —— " +
+                        "低于这个数就很难吃够蛋白质和微量营养素了。"
+                }
+            )
+            Note("留空 = 取消目标,今日页会改成显示当天结余。")
+            FieldError(error)
+            SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
+                when (val v = Validate.target(text, netMode, profile)) {
+                    is Checked.Invalid -> error = v.message
+                    is Checked.Valid -> { onSave(v.value, netMode); onDismiss() }
+                }
+            })
+        }
+    }
+}
+
+/** 身体数据。首次启动时也是这个表单,只是不能取消 */
+@Composable
+fun ProfileSheet(
+    profile: Profile?,
+    firstRun: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (Profile) -> Unit,
+) {
+    val c = LocalColors.current
+    var female by remember { mutableStateOf(profile?.isFemale == true) }
+    var age by remember { mutableStateOf(profile?.age?.takeIf { it > 0 }?.toString() ?: "") }
+    var height by remember { mutableStateOf(profile?.heightCm?.takeIf { it > 0 }?.toString() ?: "") }
+    var weight by remember { mutableStateOf(profile?.weightKg?.takeIf { it > 0 }?.toString() ?: "") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    // 首次启动时关不掉 —— 没有身体数据就算不出基础代谢,整个应用没法用
+    BottomSheet("身体数据", onDismiss = { if (!firstRun) onDismiss() }) {
+        Column {
+            if (firstRun) {
+                Note("这四个数用来算基础代谢(Mifflin-St Jeor)。只存在这台手机上,不会上传到任何地方。")
+            }
+            Segmented(
+                options = listOf("男", "女"),
+                selectedIndex = if (female) 1 else 0,
+                onSelect = { female = it == 1 },
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Field("年龄", age, { age = it }, modifier = Modifier.weight(1f), numeric = true)
+                Field("身高(cm)", height, { height = it }, modifier = Modifier.weight(1f), decimal = true)
+            }
+            Field("体重(kg)", weight, { weight = it }, decimal = true)
+
+            // 填全了就实时把基础代谢显示出来,不用保存完才知道算出多少
+            val preview = Validate.profile(
+                if (female) "female" else "male", age, height, weight, profile,
+            )
+            if (preview is Checked.Valid) {
+                Card {
+                    StatRow("基础代谢", Nutrition.bmr(preview.value).grouped(), valueColor = c.burn, last = true)
+                }
+                Note("这只是静息消耗。加上手表活动卡路里和手动运动,才是当天的总消耗。")
+            }
+
+            FieldError(error)
+            SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
+                when (val v = Validate.profile(if (female) "female" else "male", age, height, weight, profile)) {
+                    is Checked.Invalid -> error = v.message
+                    is Checked.Valid -> { onSave(v.value); onDismiss() }
+                }
+            })
+        }
+    }
+}

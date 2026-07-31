@@ -20,20 +20,23 @@ import app.calorease.ui.theme.CaloreaseTheme
  */
 class MainActivity : ComponentActivity() {
 
+    private lateinit var store: Store
     private lateinit var repo: Repository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        repo = Repository(Store(filesDir))
+        store = Store(filesDir)
+        repo = Repository(store)
         repo.load()
 
         setContent {
             CaloreaseTheme {
                 val r = remember { repo }
+                val s = remember { store }
                 val state by r.state.collectAsState()
-                App(state = state, repo = r)
+                App(state = state, repo = r, store = s)
             }
         }
     }
