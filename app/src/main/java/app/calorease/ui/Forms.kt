@@ -35,6 +35,36 @@ import app.calorease.ui.theme.NumberStyle
  * (错误档案第 10 条)这件事在结构上做不到。
  */
 
+/**
+ * 删除前的确认。
+ *
+ * 每一条删除都要过这里。这些记录没有回收站、没有撤销 —— 列表里那个叉离
+ * 整行的点击区只有几毫米,手指一偏就没了,而它删掉的可能是两周前补录的
+ * 一条体重,重建不回来。
+ *
+ * [what] 是被删的东西本身(食物名、日期),直接写在正文里,这样按下确认前
+ * 你看到的是「删除 米饭」而不是「删除这一条」。
+ */
+@Composable
+fun BoxScope.ConfirmDeleteSheet(
+    what: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    BottomSheet("删除确认", onDismiss) {
+        Column {
+            Note("将删除“$what”，此操作无法撤销。")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                GhostButton("取消", onClick = onDismiss, modifier = Modifier.weight(1f))
+                DangerButton("删除", onClick = onConfirm, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
 /** 活动消耗 —— 手表上「活动 / Move」那个数 */
 @Composable
 fun BoxScope.WatchActiveSheet(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
@@ -165,7 +195,7 @@ fun BoxScope.EditFoodSheet(
             SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
                 if (perKcal != null) {
                     if (amount == null) {
-                        error = if (perGram == "g") "重量请填一个正数。" else "份数请填一个正数。"
+                        error = if (perGram == "g") "请输入重量。" else "请输入份数。"
                         return@SolidButton
                     }
                     // 名称仍然要过校验(不能是空的),数值这边是算出来的,不用再验

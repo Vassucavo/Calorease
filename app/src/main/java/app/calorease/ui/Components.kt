@@ -32,7 +32,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -91,16 +95,30 @@ fun Modifier.glassSurface(
             val r = radius.toPx()
             val e = elevation.toPx()
 
-            // 1) 柔和落影:四层逐渐外扩、逐渐变淡,拼出散开的边缘
-            val layers = 4
-            for (i in layers downTo 1) {
-                val spread = e * i / layers.toFloat() * 1.6f
-                drawRoundRect(
-                    color = Color(0xFF18241E).copy(alpha = 0.030f / i),
-                    topLeft = Offset(-spread, -spread + e * 0.45f),
-                    size = Size(size.width + spread * 2, size.height + spread * 2),
-                    cornerRadius = CornerRadius(r + spread),
-                )
+            // 1) 柔和落影。
+            //
+            // **只画在部件外面。** 部件本身是半透明的(卡片只有 66%),阴影要是
+            // 铺到它底下,整个面被压暗一层不说,最里面那圈还会从半透明的面里
+            // 透出来,看着就是一道灰色实心边。用 Difference 把本体那块挖掉,
+            // 阴影就只剩「投在周围」这一件事。
+            //
+            // 层数从 4 提到 10,每层的 alpha 改成等量的一小份。原来是 0.030/i,
+            // 相邻两层差得最多的地方能差 0.015 —— 一个台阶就是一道看得见的硬边。
+            // 现在每层都只加 0.006,叠出来是条平滑的斜坡。
+            val body = Path().apply {
+                addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(r)))
+            }
+            clipPath(body, clipOp = ClipOp.Difference) {
+                val layers = 10
+                for (i in layers downTo 1) {
+                    val spread = e * i / layers.toFloat() * 1.6f
+                    drawRoundRect(
+                        color = Color(0xFF18241E).copy(alpha = 0.006f),
+                        topLeft = Offset(-spread, -spread + e * 0.45f),
+                        size = Size(size.width + spread * 2, size.height + spread * 2),
+                        cornerRadius = CornerRadius(r + spread),
+                    )
+                }
             }
 
             // 2) 主体

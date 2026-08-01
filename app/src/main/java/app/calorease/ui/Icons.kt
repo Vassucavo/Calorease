@@ -71,6 +71,12 @@ object Icons {
     val ChevronLeft = VectorIcon(listOf("M 15 18 l -6 -6 6 -6"))
     val ChevronRight = VectorIcon(listOf("M 9 18 l 6 -6 -6 -6"))
 
+    /** 放大镜。一个圆加一条斜柄,和这套图标的线条密度一致 */
+    val Search = VectorIcon(
+        paths = listOf("M 16.5 16.5 L 21 21"),
+        circles = listOf(Triple(11f, 11f, 6.5f)),
+    )
+
     /** 关闭浮层的叉 */
     val Close = VectorIcon(listOf("M 18 6 L 6 18 M 6 6 l 12 12"))
 
