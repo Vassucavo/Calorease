@@ -123,15 +123,18 @@ fun BoxScope.BottomSheet(
             .fillMaxWidth()
             // 和网页版的 max-height:94vh 对应,顶上永远留一条能点关闭的空隙
             .heightIn(max = screenHeight * 0.94f)
+            // 被上层压住时**连边一起糊**,不只是糊内容。
+            //
+            // 这行的位置来回改过两次,记一下结论:放在 clip/background 之后
+            // 只糊内容,面板的边和底色留在原地是锐的 —— 一块清晰的白边包着一团
+            // 糊掉的内容,很假。放在前面(现在这样)整块面板一起糊,边缘自然虚开,
+            // 和背后同样糊过的页面连成一片。
+            //
+            // 之前那次「模糊边界断层」不是位置的问题,是半径的问题:面板糊 12、
+            // 页面糊 20,交界处糊的程度对不上。现在两边共用 PageBlur。
+            .blur(if (dimmed) PageBlur else 0.dp)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
             .background(c.panelBg)
-            // 糊的是面板**里面的东西**,不是面板本身。
-            //
-            // 之前这行放在 clip/background 前面,连面板的圆角和底色一起糊了 ——
-            // 边缘化成一片渐变,和背后那层清晰边界的模糊页面接在一起,
-            // 就是那道「模糊边界断层」。放到 background 之后,底色和边保持锐利,
-            // 只有内容退到后面去,和页面的模糊半径也对得上了。
-            .blur(if (dimmed) PageBlur else 0.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

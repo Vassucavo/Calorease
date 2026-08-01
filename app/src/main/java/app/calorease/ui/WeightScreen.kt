@@ -1,15 +1,24 @@
 package app.calorease.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -20,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.calorease.data.Repository
 import app.calorease.logic.Calibration
+import app.calorease.logic.Reports
 import app.calorease.logic.Dates
 import app.calorease.ui.theme.LocalColors
 import kotlin.math.abs
@@ -37,7 +47,11 @@ fun WeightScreen(
     onDelete: (String) -> Unit,
 ) {
     val c = LocalColors.current
+    val context = LocalContext.current
     val trend = Calibration.trend(state.weights)
+    // 复制过之后图标转成墨绿,一直留着 —— 这一屏没有别的地方能回执,
+    // 不留个痕迹的话按完不知道到底有没有复制上
+    var copied by remember { mutableStateOf(false) }
 
     Column {
         if (trend.isNotEmpty()) {
@@ -51,7 +65,33 @@ fun WeightScreen(
             } else "持续称重才能画出趋势"
 
             Card(modifier = Modifier.padding(bottom = 10.dp)) {
-                Eyebrow("趋势体重")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Box(modifier = Modifier.weight(1f)) { Eyebrow("趋势体重") }
+                    // 把记录复制成一张表,粘到任意 AI 对话里让它读趋势。
+                    // 这个应用不联网、也不打算联网,所以「拿去分析」这件事只能
+                    // 靠剪贴板交接 —— 和快速录入那边「拍照问 AI 再手填」是同一个路子。
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                copyToClipboard(
+                                    context,
+                                    Reports.weightTable(state.weights, state.history, state.profile),
+                                )
+                                copied = true
+                            }
+                            .padding(4.dp),
+                    ) {
+                        StrokeIcon(
+                            Icons.Copy,
+                            color = if (copied) c.burn else c.muted,
+                            size = 18.dp,
+                        )
+                    }
+                }
                 Row(verticalAlignment = Alignment.Bottom) {
                     BigNumber(last.avg.f1(), color = c.ink, modifier = Modifier.padding(bottom = 4.dp))
                     Text(

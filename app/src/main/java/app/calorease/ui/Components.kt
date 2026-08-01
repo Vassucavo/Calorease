@@ -1,5 +1,8 @@
 package app.calorease.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -363,6 +366,12 @@ fun Callout(title: String, body: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** 复制到剪贴板。不弹提示 —— 回执由调用方自己给(比如把图标转成墨绿) */
+fun copyToClipboard(context: Context, text: String) {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    cm?.setPrimaryClip(ClipData.newPlainText("Calorease", text))
+}
+
 /**
  * 页面顶部的标题栏。眉标一行小字 + 大标题一行,对应网页版的 `.head`:
  * 高度至少 42、下边距 16,眉标 11sp 字距 .1em,标题 18sp/600。
@@ -374,7 +383,9 @@ fun PageHeader(eyebrow: String, title: String, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 42.dp)
-            .padding(bottom = 16.dp),
+            // 只留 6 —— 顶栏和内容之间那段间距,剩下的由滚动区自己的上内边距补,
+            // 那一截要留在滚动区**里面**,第一个部件的投影才有地方画(见 App 里的 ShadowRoom)
+            .padding(bottom = 6.dp),
         verticalArrangement = Arrangement.Center,
     ) {
         Text(eyebrow, fontSize = 11.sp, letterSpacing = 1.1.sp, color = c.muted)
