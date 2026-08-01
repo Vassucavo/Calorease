@@ -89,10 +89,25 @@ fun TodayScreen(
                 Note(detail, modifier = Modifier.padding(bottom = 16.dp))
             } else if (target != 0) {
                 val left = allowance - eaten
-                Eyebrow(if (left >= 0) "今天还能吃" else "已超出目标")
+                // 「还能吃」和「还需吃」不是一回事。按结余设的目标如果是正数
+                // (增重),那个额度是**必须吃到**的下限,不是不能超的上限;
+                // 减重和按摄入设的目标反过来,是上限。同一句话套两种目标会误导。
+                val mustEat = profile?.isNetMode == true && target > 0
+                Eyebrow(
+                    when {
+                        left < 0 && mustEat -> "已达成目标"
+                        left < 0 -> "已超出目标"
+                        mustEat -> "今天还需吃"
+                        else -> "今天还能吃"
+                    }
+                )
                 BigNumber(
                     abs(left).grouped(),
-                    color = if (left >= 0) c.burn else c.warn,
+                    color = when {
+                        left < 0 && mustEat -> c.burn
+                        left < 0 -> c.warn
+                        else -> c.burn
+                    },
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
                 val detail = if (profile!!.isNetMode) {

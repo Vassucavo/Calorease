@@ -93,6 +93,8 @@ fun BoxScope.BottomSheet(
      * 底部有固定按钮,整片淡出会把按钮一起削掉,它得自己只淡出列表那一段。
      */
     fadeBottom: Dp = SheetBottomFade,
+    /** 标题右边、关闭叉左边的位置。放搜索之类的入口 */
+    action: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val c = LocalColors.current
@@ -134,18 +136,23 @@ fun BoxScope.BottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp)
-                .padding(bottom = 16.dp),
+                // 只留 6 —— 剩下的间距挪进内容区里(见下面的 SheetShadowRoom),
+                // 那一截要在裁剪范围**之内**,第一个部件的投影才有地方画
+                .padding(bottom = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onDismiss)
-                    .padding(6.dp),
-            ) {
-                StrokeIcon(Icons.Close, color = c.muted, size = 20.dp, strokeWidth = 2f)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                action?.invoke()
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onDismiss)
+                        .padding(6.dp),
+                ) {
+                    StrokeIcon(Icons.Close, color = c.muted, size = 20.dp, strokeWidth = 2f)
+                }
             }
         }
         // 这里必须是 Column。之前为了挂滚动修饰符图省事用了 Box,而 Box 是
@@ -161,7 +168,9 @@ fun BoxScope.BottomSheet(
                     else Modifier
                 )
                 .padding(horizontal = contentPadding)
-                .padding(bottom = contentBottomPadding)
+                // 上下都给投影留出余量。淡出那层是离屏合成,会把内容裁到自己的
+                // 边界上,不留这一截,第一个和最后一个部件的投影就被削平了。
+                .padding(top = SheetShadowRoom, bottom = contentBottomPadding)
         ) {
             content()
         }
@@ -170,6 +179,9 @@ fun BoxScope.BottomSheet(
 
 /** 浮层底部淡出带的高度。内容的下内边距默认也用它,免得正文被削掉 */
 private val SheetBottomFade = 26.dp
+
+/** 内容区上下留给部件投影的余量。glassSurface 的落影最多外扩这么多 */
+val SheetShadowRoom = 10.dp
 
 /**
  * 模糊半径。

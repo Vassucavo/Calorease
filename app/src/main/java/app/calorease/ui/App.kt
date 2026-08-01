@@ -84,6 +84,8 @@ private sealed interface Sheet {
     data class Restore(val backup: BackupFile) : Sheet
     data object MineList : Sheet
     data object PickDay : Sheet
+    /** 删除确认。[what] 写进正文,[run] 是确认后真正执行的那一下 */
+    data class ConfirmDelete(val what: String, val run: () -> Unit) : Sheet
 }
 
 /**
@@ -98,6 +100,7 @@ private sealed interface Sheet2 {
     data class PickFood(val food: Food) : Sheet2
     data class EditMine(val food: Food) : Sheet2
     data object PickWeightDate : Sheet2
+    data class ConfirmDelete(val what: String, val run: () -> Unit) : Sheet2
 }
 
 /**
@@ -231,15 +234,27 @@ fun App(
                                 onEditWatchActive = { sheet = Sheet.WatchActive },
                                 onAddBurn = { sheet = Sheet.AddBurn },
                                 onEditBurn = { sheet = Sheet.EditBurn(it) },
-                                onDeleteBurn = { repo.deleteBurn(it) },
+                                onDeleteBurn = { id ->
+                                    val b = state.day.burn.firstOrNull { it.id == id }
+                                    if (b != null) {
+                                        sheet = Sheet.ConfirmDelete(b.label) { repo.deleteBurn(id) }
+                                    }
+                                },
                                 onEditFood = { sheet = Sheet.EditFood(it) },
-                                onDeleteFood = { repo.deleteFood(it) },
+                                onDeleteFood = { id ->
+                                    val f = state.day.food.firstOrNull { it.id == id }
+                                    if (f != null) {
+                                        sheet = Sheet.ConfirmDelete(f.name) { repo.deleteFood(id) }
+                                    }
+                                },
                             )
 
                             Tab.Weight -> WeightScreen(
                                 state = state,
                                 onEdit = { sheet = Sheet.EditWeight(it) },
-                                onDelete = { repo.deleteWeight(it) },
+                                onDelete = { date ->
+                                    sheet = Sheet.ConfirmDelete(Dates.full(date)) { repo.deleteWeight(date) }
+                                },
                             )
 
                             Tab.Tune -> TuneScreen(
@@ -398,6 +413,15 @@ private fun BoxScope.RenderSheet(
             )
         }
 
+        is Sheet.ConfirmDelete -> ConfirmDeleteSheet(
+            what = sheet.what,
+            onDismiss = onClose,
+            onConfirm = {
+                sheet.run()
+                onClose()
+            },
+        )
+
         Sheet.PickDay -> DatePickSheet(
             value = state.curDate,
             onDismiss = onClose,
@@ -413,7 +437,12 @@ private fun BoxScope.RenderSheet(
             onEdit = { onOpen2(Sheet2.EditMine(it)) },
             // 新建的那条还没有 id,存的时候按这个区分是新增还是修改
             onAdd = { onOpen2(Sheet2.EditMine(Food(name = "", kcal = 0, unit = "g"))) },
-            onDelete = { repo.deleteMine(it) },
+            onDelete = { food ->
+                val id = food.id
+                if (id != null) {
+                    onOpen2(Sheet2.ConfirmDelete(food.name) { repo.deleteMine(id) })
+                }
+            },
         )
 
         Sheet.AddWeight -> WeightSheet(
@@ -505,6 +534,15 @@ private fun BoxScope.RenderSheet2(
                 // 新建的那条还没有 id,rememberFood 会给它编一个并按名字去重;
                 // 已有的那条按 id 原地改,这样改名字不会变成两条
                 if (food.id == null) repo.rememberFood(food) else repo.updateMine(food)
+                onClose()
+            },
+        )
+
+        is Sheet2.ConfirmDelete -> ConfirmDeleteSheet(
+            what = sheet2.what,
+            onDismiss = onClose,
+            onConfirm = {
+                sheet2.run()
                 onClose()
             },
         )

@@ -29,7 +29,7 @@ object Validate {
     fun weight(kgText: String, dateKey: String, bfText: String): Checked<WeightEntry> {
         val kgRaw = kgText.trim().replace(',', '.').toDoubleOrNull()
         if (kgRaw == null || kgRaw < 20 || kgRaw > 400) {
-            return invalid("请输入 20 到 400 之间的体重（kg）。")
+            return invalid("体重请填 20 到 400 之间。")
         }
         val kg = (kgRaw * 10).roundToInt() / 10.0
 
@@ -40,7 +40,7 @@ object Validate {
         if (bfText.trim().isNotEmpty()) {
             val raw = bfText.trim().replace(',', '.').toDoubleOrNull()
             if (raw == null || raw < 3 || raw > 70) {
-                return invalid("体脂率请填 3 到 70 之间，或者留空。")
+                return invalid("体脂率请填 3 到 70 之间，或留空。")
             }
             bf = (raw * 10).roundToInt() / 10.0
         }
@@ -61,15 +61,15 @@ object Validate {
 
         val v = text.replace('−', '-').replace('，', ',').replace(",", "")
             .toDoubleOrNull()?.roundToInt()
-            ?: return invalid("请输入一个数字。")
+            ?: return invalid("请输入数字。")
 
         if (netMode) {
-            if (abs(v) > 1500) return invalid("结余绝对值超过 1500 不太现实，请重新确认。")
+            if (abs(v) > 1500) return invalid("结余绝对值请不要超过 1500。")
         } else {
-            if (v <= 0) return invalid("按摄入设目标时必须是正数。想设缺口请切到“按结余”。")
+            if (v <= 0) return invalid("按摄入设目标时须为正数。设缺口请切到“按结余”。")
             val floor = Nutrition.floorFor(profile)
             if (v < floor) {
-                return invalid("低于 $floor 千卡就很难吃够蛋白质和微量营养素了，建议不要低于这个数。")
+                return invalid("目标不建议低于 $floor 千卡，再低就很难吃够蛋白质和微量营养素。")
             }
         }
         return Checked.Valid(v)
@@ -106,10 +106,10 @@ object Validate {
     /** 一条手动运动记录 */
     fun burn(label: String, kcalText: String): Checked<Pair<String, Int>> {
         val name = label.trim()
-        if (name.isEmpty()) return invalid("给这次运动起个名字。")
+        if (name.isEmpty()) return invalid("请输入运动名称。")
         val kcal = kcalText.trim().toDoubleOrNull()?.roundToInt()
-        if (kcal == null || kcal <= 0) return invalid("消耗的千卡数请填一个正数。")
-        if (kcal > 5000) return invalid("单条运动超过 5000 千卡不太现实，请重新确认。")
+        if (kcal == null || kcal <= 0) return invalid("消耗请填一个正数。")
+        if (kcal > 5000) return invalid("单条运动请不要超过 5000 千卡。")
         return Checked.Valid(name to kcal)
     }
 
@@ -117,23 +117,23 @@ object Validate {
     fun watchActive(raw: String): Checked<Int> {
         val text = raw.trim()
         if (text.isEmpty()) return Checked.Valid(0)
-        val v = text.toDoubleOrNull()?.roundToInt() ?: return invalid("请输入一个数字。")
-        if (v < 0) return invalid("活动消耗不会是负数。")
-        if (v > 10000) return invalid("超过 10000 千卡不太现实，请重新确认。")
+        val v = text.toDoubleOrNull()?.roundToInt() ?: return invalid("请输入数字。")
+        if (v < 0) return invalid("活动消耗不能为负数。")
+        if (v > 10000) return invalid("活动消耗请不要超过 10000 千卡。")
         return Checked.Valid(v)
     }
 
     /** 自己录入的一条食物 */
     fun food(name: String, kcalText: String, proteinText: String): Checked<Triple<String, Int, Int>> {
         val n = name.trim()
-        if (n.isEmpty()) return invalid("给这样食物起个名字。")
+        if (n.isEmpty()) return invalid("请输入名称。")
         val kcal = kcalText.trim().toDoubleOrNull()?.roundToInt()
-        if (kcal == null || kcal < 0) return invalid("热量请填一个不小于 0 的数字。")
-        if (kcal > 20000) return invalid("超过 20000 千卡不太现实，请重新确认。")
+        if (kcal == null || kcal < 0) return invalid("热量请填 0 或以上的数字。")
+        if (kcal > 20000) return invalid("热量请不要超过 20000 千卡。")
         val protein = if (proteinText.trim().isEmpty()) 0 else
             proteinText.trim().replace(',', '.').toDoubleOrNull()?.roundToInt()
-                ?: return invalid("蛋白质请填一个数字，或者留空。")
-        if (protein < 0) return invalid("蛋白质不会是负数。")
+                ?: return invalid("蛋白质请填数字，或留空。")
+        if (protein < 0) return invalid("蛋白质不能为负数。")
         return Checked.Valid(Triple(n, kcal, protein))
     }
 }

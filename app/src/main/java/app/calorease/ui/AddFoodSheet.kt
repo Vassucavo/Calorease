@@ -546,7 +546,7 @@ private fun submitQuick(
             if (f.perHundred) {
                 val grams = f.gramsText.trim().replace(',', '.').toDoubleOrNull()
                 if (grams == null || grams <= 0) {
-                    f.error = "吃了多少克请填一个正数。"
+                    f.error = "请输入克数。"
                     return
                 }
                 f.error = null
@@ -578,7 +578,7 @@ private fun submitLabel(
         is Checked.Valid -> {
             val n = f.servings.trim().replace(',', '.').toDoubleOrNull() ?: 0.0
             if (n <= 0) {
-                f.error = "份数请填一个正数。"
+                f.error = "请输入份数。"
                 return
             }
             val (nm, perKcal, perProtein) = v.value
