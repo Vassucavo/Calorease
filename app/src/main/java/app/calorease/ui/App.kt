@@ -22,7 +22,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,6 +76,7 @@ private sealed interface Sheet {
     data object Target : Sheet
     data object EditProfile : Sheet
     data class Restore(val backup: BackupFile) : Sheet
+    data object MineList : Sheet
 }
 
 /**
@@ -136,79 +139,100 @@ fun App(
             // 自己糊掉,再让半透明的浮层压在上面。
             // 半径要够大,不然透出来的是「能认出字的模糊」而不是柔焦色块。
             // Android 12 以下这行是空操作,那些机器上退化成半透明纯色。
-            .blur(if (overlayOpen) 20.dp else 0.dp),
+            .blur(if (overlayOpen) PageBlur else 0.dp),
     ) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             // 今天和体重两页底部各有一个固定按钮。内容要多留出它的高度,
             // 否则最后一条会被压在按钮底下 —— 摄入的最后一条、全部记录的最后一条
             // 都是这么丢的。
             val pinned = tab == Tab.Today || tab == Tab.Weight
-            Box(
+            val scroll = rememberScrollState()
+            val scrolled by remember { derivedStateOf { scroll.value > 0 } }
+            // 顶栏固定之后,内容要从它底下淡出去,不然是齐刷刷地被切断。
+            // 没滚的时候不淡 —— 停在最上面时第一行不该是灰的。
+            val topFade by animateDpAsState(if (scrolled) 18.dp else 0.dp, label = "topFade")
+
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    // 内容在按钮那一段淡出。用的是 alpha 遮罩而不是一条渐变色带 ——
-                    // 页面底色是四层渐变叠出来的,没有哪一个固定色值能和它对上,
-                    // 拿色带盖必然穿帮。淡出露出来的就是页面本身,永远同色。
-                    .then(if (pinned) Modifier.fadeOutBottom(PinnedFade) else Modifier)
-                    .verticalScroll(rememberScrollState())
-                    .padding(
-                        start = Dimens.screenPadding,
-                        end = Dimens.screenPadding,
-                        top = Dimens.screenPadding,
-                        bottom = if (pinned) 84.dp else 24.dp,
-                    ),
+                    .windowInsetsPadding(WindowInsets.statusBars),
             ) {
-                Column {
+                // 顶栏吸顶:它在滚动区外面,页面怎么滚它都不动
                 PageHeader(
                     eyebrow = tab.eyebrow,
                     title = if (tab == Tab.Today) Dates.full(state.curDate) else tab.title,
+                    modifier = Modifier.padding(
+                        start = Dimens.screenPadding,
+                        end = Dimens.screenPadding,
+                        top = Dimens.screenPadding,
+                    ),
                 )
-                when (tab) {
-                    Tab.Today -> TodayScreen(
-                        state = state,
-                        onStepDay = { repo.stepDay(it) },
-                        onEditWatchActive = { sheet = Sheet.WatchActive },
-                        onAddBurn = { sheet = Sheet.AddBurn },
-                        onEditBurn = { sheet = Sheet.EditBurn(it) },
-                        onDeleteBurn = { repo.deleteBurn(it) },
-                        onEditFood = { sheet = Sheet.EditFood(it) },
-                        onDeleteFood = { repo.deleteFood(it) },
-                    )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        // 上下两头都淡出。用的是 alpha 遮罩而不是一条渐变色带 ——
+                        // 页面底色是四层渐变叠出来的,没有哪个固定色值能和它对上,
+                        // 拿色带盖必然穿帮。淡出露出来的就是页面本身,永远同色。
+                        .fadeEdges(
+                            top = topFade,
+                            bottom = if (pinned) PinnedFade else 0.dp,
+                        )
+                        .verticalScroll(scroll)
+                        .padding(
+                            start = Dimens.screenPadding,
+                            end = Dimens.screenPadding,
+                            bottom = if (pinned) 84.dp else 24.dp,
+                        ),
+                ) {
+                    Column {
+                        when (tab) {
+                            Tab.Today -> TodayScreen(
+                                state = state,
+                                onStepDay = { repo.stepDay(it) },
+                                onJumpToday = { repo.jumpToToday() },
+                                onEditWatchActive = { sheet = Sheet.WatchActive },
+                                onAddBurn = { sheet = Sheet.AddBurn },
+                                onEditBurn = { sheet = Sheet.EditBurn(it) },
+                                onDeleteBurn = { repo.deleteBurn(it) },
+                                onEditFood = { sheet = Sheet.EditFood(it) },
+                                onDeleteFood = { repo.deleteFood(it) },
+                            )
 
-                    Tab.Weight -> WeightScreen(
-                        state = state,
-                        onEdit = { sheet = Sheet.EditWeight(it) },
-                        onDelete = { repo.deleteWeight(it) },
-                    )
+                            Tab.Weight -> WeightScreen(
+                                state = state,
+                                onEdit = { sheet = Sheet.EditWeight(it) },
+                                onDelete = { repo.deleteWeight(it) },
+                            )
 
-                    Tab.Tune -> TuneScreen(
-                        state = state,
-                        onApplyTarget = { value ->
-                            repo.setTarget(value, netMode = false)
-                            tab = Tab.Today
-                        },
-                    )
+                            Tab.Tune -> TuneScreen(
+                                state = state,
+                                onApplyTarget = { value ->
+                                    repo.setTarget(value, netMode = false)
+                                    tab = Tab.Today
+                                },
+                            )
 
-                    Tab.Logs -> LogsScreen(
-                        state = state,
-                        onOpenDay = { key ->
-                            repo.openDate(key)
-                            tab = Tab.Today
-                        },
-                    )
+                            Tab.Logs -> LogsScreen(
+                                state = state,
+                                onOpenDay = { key ->
+                                    repo.openDate(key)
+                                    tab = Tab.Today
+                                },
+                            )
 
-                    Tab.Settings -> SettingsScreen(
-                        state = state,
-                        onEditProfile = { sheet = Sheet.EditProfile },
-                        onEditTarget = { sheet = Sheet.Target },
-                        onToggleProtein = { repo.toggleProtein() },
-                        onToggleActiveIncludes = { repo.toggleActiveIncludesWorkouts() },
-                        onDeleteMine = { repo.deleteMine(it) },
-                        onExport = { exportLauncher.launch(Backup.fileName(Dates.today())) },
-                        onImport = { importLauncher.launch(arrayOf("*/*")) },
-                    )
-                }
+                            Tab.Settings -> SettingsScreen(
+                                state = state,
+                                onEditProfile = { sheet = Sheet.EditProfile },
+                                onEditTarget = { sheet = Sheet.Target },
+                                onToggleProtein = { repo.toggleProtein() },
+                                onToggleActiveIncludes = { repo.toggleActiveIncludesWorkouts() },
+                                onOpenMine = { sheet = Sheet.MineList },
+                                onExport = { exportLauncher.launch(Backup.fileName(Dates.today())) },
+                                onImport = { importLauncher.launch(arrayOf("*/*")) },
+                            )
+                        }
+                    }
                 }
             }
 
@@ -312,14 +336,22 @@ private fun BoxScope.RenderSheet(
         is Sheet.EditFood -> {
             val f = state.day.food.firstOrNull { it.id == sheet.id }
             if (f == null) onClose() else EditFoodSheet(
-                initialName = f.name,
-                initialKcal = f.kcal,
-                initialProtein = f.protein,
+                entry = f,
                 showProtein = state.profile?.showProtein == true,
                 onDismiss = onClose,
-                onSave = { name, kcal, protein -> repo.updateFood(f.id, name, kcal, protein) },
+                onSave = { name, kcal, protein, amount ->
+                    repo.updateFood(f.id, name, kcal, protein, amount)
+                },
             )
         }
+
+        Sheet.MineList -> MineSheet(
+            mine = state.mine,
+            showProtein = state.profile?.showProtein == true,
+            onDismiss = onClose,
+            onSave = { repo.updateMine(it) },
+            onDelete = { repo.deleteMine(it) },
+        )
 
         Sheet.AddWeight -> WeightSheet(
             existing = null,

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  调试版覆盖掉应用名。debug 源集里的资源会盖住 main 里的同名资源,
+  所以只要这一个文件,不用改主工程。
+
+  改名字是因为两个版本会同时装在手机上(见 build.gradle.kts 里的
+  applicationIdSuffix),图标又一模一样 —— 不改名字根本分不清点开的是哪个。
+-->
+<resources>
+    <string name="app_name">Calorease 调试</string>
+</resources>

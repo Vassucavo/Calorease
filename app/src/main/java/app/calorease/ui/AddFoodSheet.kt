@@ -256,7 +256,11 @@ private fun AddFoodBody(
             }
         }
 
-        // 搜索页没有可提交的东西,那一页的空间全给食物列表
+        // 搜索页没有可提交的东西,那一页的空间全给食物列表。
+        //
+        // 「存入我的食物」这个勾选放在这里而不是各自的表单里,是因为它在两页里
+        // 是同一件事,位置就该固定。留在表单里的话,「整份」比「每100g」少一个
+        // 克数框,这一行就会跟着往上跳一格。
         if (tab != AddTab.Search) {
             Column(
                 modifier = Modifier
@@ -264,6 +268,13 @@ private fun AddFoodBody(
                     .padding(horizontal = SheetPad)
                     .padding(bottom = SheetTail),
             ) {
+                if (tab == AddTab.Quick) {
+                    CheckRow(quick.save, "存入“我的食物”") { quick.save = it }
+                    FieldError(quick.error)
+                } else {
+                    CheckRow(label.save, "存入“我的食物”") { label.save = it }
+                    FieldError(label.error)
+                }
                 SolidButton(
                     "加入记录",
                     background = LocalColors.current.intake,
@@ -489,8 +500,7 @@ private fun QuickTab(showProtein: Boolean, f: QuickForm) {
     if (f.perHundred) {
         Field("吃了多少（g）", f.gramsText, { f.gramsText = it }, decimal = true, placeholder = "200")
     }
-    CheckRow(f.save, "存进“我的食物”，下次一键复用") { f.save = it }
-    FieldError(f.error)
+    // 「存入我的食物」和错误提示都在面板底部的固定区里,见 AddFoodBody
 }
 
 /** 营养标签。照着包装上的每份数值填,再乘份数 */
@@ -531,9 +541,7 @@ private fun LabelTab(showProtein: Boolean, f: LabelForm) {
             )
         }
     }
-
-    CheckRow(f.save, "存进“我的食物”") { f.save = it }
-    FieldError(f.error)
+    // 「存入我的食物」和错误提示都在面板底部的固定区里,见 AddFoodBody
 }
 
 /**

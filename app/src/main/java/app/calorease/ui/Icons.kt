@@ -71,10 +71,6 @@ object Icons {
     val ChevronLeft = VectorIcon(listOf("M 15 18 l -6 -6 6 -6"))
     val ChevronRight = VectorIcon(listOf("M 9 18 l 6 -6 -6 -6"))
 
-    /** 可展开的那一行右边的箭头 */
-    val ChevronDown = VectorIcon(listOf("M 6 9 l 6 6 6 -6"))
-    val ChevronUp = VectorIcon(listOf("M 18 15 l -6 -6 -6 6"))
-
     /** 关闭浮层的叉 */
     val Close = VectorIcon(listOf("M 18 6 L 6 18 M 6 6 l 12 12"))
 }

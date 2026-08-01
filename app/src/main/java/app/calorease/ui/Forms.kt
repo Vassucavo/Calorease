@@ -12,8 +12,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.calorease.data.FoodEntry
 import app.calorease.data.Profile
 import app.calorease.data.WeightEntry
 import app.calorease.logic.Checked
@@ -21,6 +25,7 @@ import app.calorease.logic.Dates
 import app.calorease.logic.Nutrition
 import app.calorease.logic.Validate
 import app.calorease.ui.theme.LocalColors
+import app.calorease.ui.theme.NumberStyle
 
 /**
  * 各种小表单。
@@ -78,38 +83,108 @@ fun BoxScope.BurnSheet(
     }
 }
 
-/** 改一条已经录进去的食物 */
+/**
+ * 改一条已经录进去的食物。
+ *
+ * 录入时如果留下了份量([FoodEntry.amount] / [FoodEntry.unit]),这里就**按份量改**:
+ * 改克数或份数,热量自己跟着算。这才是记错时真正要改的东西 —— 你记得的是
+ * 「吃了 200g 不是 150g」,不是「应该是 216 千卡不是 162 千卡」。
+ *
+ * 每单位的基准是从原来那条反推的:每 100g 热量 = 原热量 ÷ 原克数 × 100。
+ * 没有份量的条目(手填的、或者更早版本记的)退回原来的样子,直接改热量 ——
+ * 没有基准就换算不出来,硬编一个只会算错。
+ */
 @Composable
 fun BoxScope.EditFoodSheet(
-    initialName: String,
-    initialKcal: Int,
-    initialProtein: Int,
+    entry: FoodEntry,
     showProtein: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, Int, Int) -> Unit,
+    onSave: (name: String, kcal: Int, protein: Int, amount: Double?) -> Unit,
 ) {
-    var name by remember { mutableStateOf(initialName) }
-    var kcal by remember { mutableStateOf(initialKcal.toString()) }
-    var protein by remember { mutableStateOf(if (initialProtein > 0) initialProtein.toString() else "") }
+    val c = LocalColors.current
+    // 基准:原来那条按每 100g(或每份)折算回去是多少
+    val basis = entry.amount?.takeIf { it > 0 }
+    val perGram = if (entry.unit == "g") "g" else "x"
+    val perKcal = basis?.let { if (perGram == "g") entry.kcal / it * 100.0 else entry.kcal / it }
+    val perProtein = basis?.let { if (perGram == "g") entry.protein / it * 100.0 else entry.protein / it }
+
+    var name by remember { mutableStateOf(entry.name) }
+    var amountText by remember {
+        mutableStateOf(basis?.let { if (it == it.toInt().toDouble()) it.toInt().toString() else it.toString() } ?: "")
+    }
+    var kcalText by remember { mutableStateOf(entry.kcal.toString()) }
+    var proteinText by remember { mutableStateOf(if (entry.protein > 0) entry.protein.toString() else "") }
     var error by remember { mutableStateOf<String?>(null) }
+
+    val amount = amountText.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
+    val previewKcal = if (perKcal != null && amount != null) {
+        Nutrition.scale(perKcal, amount, perGram == "g")
+    } else entry.kcal
+    val previewProtein = if (perProtein != null && amount != null) {
+        Nutrition.scale(perProtein, amount, perGram == "g")
+    } else entry.protein
 
     BottomSheet("修改这一条", onDismiss) {
         Column {
             Field("名称", name, { name = it })
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Field("热量", kcal, { kcal = it }, modifier = Modifier.weight(1f), numeric = true)
-                if (showProtein) {
-                    Field("蛋白质（g）", protein, { protein = it }, modifier = Modifier.weight(1f), numeric = true)
+
+            if (perKcal != null) {
+                Field(
+                    if (perGram == "g") "重量（g）" else "份数",
+                    amountText, { amountText = it },
+                    decimal = true,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    Text("热量", fontSize = 13.sp, color = c.muted)
+                    Text(
+                        previewKcal.grouped(),
+                        style = NumberStyle,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = c.intake,
+                    )
+                }
+                if (showProtein) StatRow("蛋白质", "${previewProtein}g", last = true)
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Field("热量", kcalText, { kcalText = it }, modifier = Modifier.weight(1f), numeric = true)
+                    if (showProtein) {
+                        Field(
+                            "蛋白质（g）", proteinText, { proteinText = it },
+                            modifier = Modifier.weight(1f), numeric = true,
+                        )
+                    }
                 }
             }
+
             FieldError(error)
             SolidButton("保存", modifier = Modifier.padding(top = 12.dp), onClick = {
-                when (val v = Validate.food(name, kcal, protein)) {
-                    is Checked.Invalid -> error = v.message
-                    is Checked.Valid -> {
-                        val (n, k, p) = v.value
-                        onSave(n, k, p)
-                        onDismiss()
+                if (perKcal != null) {
+                    if (amount == null) {
+                        error = if (perGram == "g") "重量请填一个正数。" else "份数请填一个正数。"
+                        return@SolidButton
+                    }
+                    // 名称仍然要过校验(不能是空的),数值这边是算出来的,不用再验
+                    when (val v = Validate.food(name, previewKcal.toString(), previewProtein.toString())) {
+                        is Checked.Invalid -> error = v.message
+                        is Checked.Valid -> {
+                            val (n, k, p) = v.value
+                            onSave(n, k, p, amount)
+                            onDismiss()
+                        }
+                    }
+                } else {
+                    when (val v = Validate.food(name, kcalText, proteinText)) {
+                        is Checked.Invalid -> error = v.message
+                        is Checked.Valid -> {
+                            val (n, k, p) = v.value
+                            onSave(n, k, p, null)
+                            onDismiss()
+                        }
                     }
                 }
             })

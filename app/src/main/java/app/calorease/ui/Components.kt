@@ -368,10 +368,10 @@ fun Callout(title: String, body: String, modifier: Modifier = Modifier) {
  * 高度至少 42、下边距 16,眉标 11sp 字距 .1em,标题 18sp/600。
  */
 @Composable
-fun PageHeader(eyebrow: String, title: String) {
+fun PageHeader(eyebrow: String, title: String, modifier: Modifier = Modifier) {
     val c = LocalColors.current
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 42.dp)
             .padding(bottom = 16.dp),
