@@ -38,6 +38,7 @@ import kotlin.math.max
 fun TodayScreen(
     state: Repository.AppState,
     onStepDay: (Long) -> Unit,
+    onJumpToday: () -> Unit,
     onEditWatchActive: () -> Unit,
     onAddBurn: () -> Unit,
     onEditBurn: (String) -> Unit,
@@ -62,10 +63,29 @@ fun TodayScreen(
             dateKey = state.curDate,
             isToday = isToday,
             onStep = onStepDay,
+            onJumpToday = onJumpToday,
         )
 
         Card {
-            if (target != 0) {
+            // 翻到过去的某一天时,「还能吃多少」是没有意义的 —— 那天已经过完了,
+            // 剩多少额度改变不了任何事。回头看只关心两件事:那天吃了多少、
+            // 那天结余多少。按设置里选的口径给其中一个。
+            if (!isToday) {
+                val intakeMode = target != 0 && profile?.isNetMode != true
+                Eyebrow(if (intakeMode) "该日已摄入" else "该日结余")
+                BigNumber(
+                    if (intakeMode) eaten.grouped()
+                    else (if (net >= 0) "+" else "−") + abs(net).grouped(),
+                    color = if (intakeMode) c.intake else if (net >= 0) c.intake else c.burn,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+                val detail = if (intakeMode) {
+                    "目标 ${allowance.grouped()}，当天消耗 ${burned.grouped()}"
+                } else {
+                    "摄入 ${eaten.grouped()}，消耗 ${burned.grouped()}"
+                }
+                Note(detail, modifier = Modifier.padding(bottom = 16.dp))
+            } else if (target != 0) {
                 val left = allowance - eaten
                 Eyebrow(if (left >= 0) "今天还能吃" else "已超出目标")
                 BigNumber(
@@ -114,7 +134,6 @@ fun TodayScreen(
 
         ItemRow(
             name = "活动消耗",
-            sub = "填“活动 / Move”那个数，不要填总计",
             trailing = if (day.watchActive != 0) day.watchActive.grouped() else "填写",
             trailingColor = if (day.watchActive != 0) c.burn else c.muted,
             onTap = onEditWatchActive,
@@ -162,9 +181,20 @@ fun TodayScreen(
     }
 }
 
-/** 日期切换条。不能翻到未来 —— 右箭头在今天时是禁用的 */
+/**
+ * 日期切换条。不能翻到未来 —— 右箭头在今天时是禁用的。
+ *
+ * 中间那块可以点:翻远了之后一下跳回今天,不用一格一格按回来。
+ * 副行直接说明这件事(「回到今天」),所以不需要再挂一句「点两侧箭头切换日期」——
+ * 两个箭头长什么样、干什么用,不用文字解释。
+ */
 @Composable
-private fun DateNav(dateKey: String, isToday: Boolean, onStep: (Long) -> Unit) {
+private fun DateNav(
+    dateKey: String,
+    isToday: Boolean,
+    onStep: (Long) -> Unit,
+    onJumpToday: () -> Unit,
+) {
     val c = LocalColors.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
@@ -173,7 +203,11 @@ private fun DateNav(dateKey: String, isToday: Boolean, onStep: (Long) -> Unit) {
     ) {
         ArrowButton(Icons.ChevronLeft, enabled = true) { onStep(-1) }
         Column(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(9.dp))
+                .then(if (isToday) Modifier else Modifier.clickable(onClick = onJumpToday))
+                .padding(vertical = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -184,9 +218,10 @@ private fun DateNav(dateKey: String, isToday: Boolean, onStep: (Long) -> Unit) {
                 color = c.ink,
             )
             Text(
-                if (isToday) "今天" else "点两侧箭头切换日期",
+                if (isToday) "今天" else "回到今天",
                 fontSize = 11.sp,
-                color = c.muted,
+                fontWeight = if (isToday) FontWeight.Normal else FontWeight.SemiBold,
+                color = if (isToday) c.muted else c.burn,
                 textAlign = TextAlign.Center,
             )
         }

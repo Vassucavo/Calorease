@@ -72,6 +72,23 @@ class LogicTest {
     }
 
     @Test
+    fun `按份量反推基准再换算,和原来那条对得上`() {
+        // 「修改这一条」就是这么算的:先从原记录反推每 100g 的值,再乘新克数。
+        // 原地不动地算一遍,必须还是原来的数 —— 否则一打开修改面板数字就变了。
+        val kcal = 216
+        val grams = 150.0
+        val per100 = kcal / grams * 100.0
+        assertEquals(kcal, Nutrition.scale(per100, grams, true))
+        // 换个克数是线性的
+        assertEquals(288, Nutrition.scale(per100, 200.0, true))
+
+        // 按份的同理
+        val perServing = 90 / 1.5
+        assertEquals(90, Nutrition.scale(perServing, 1.5, false))
+        assertEquals(180, Nutrition.scale(perServing, 3.0, false))
+    }
+
+    @Test
     fun `份量文字按计量方式给出单位`() {
         assertEquals("200g", FoodEntry("a", "米饭", 200, unit = "g", amount = 200.0).portion)
         assertEquals("1.5 份", FoodEntry("b", "酸奶", 90, unit = "x", amount = 1.5).portion)

@@ -123,9 +123,15 @@ fun BoxScope.BottomSheet(
             .fillMaxWidth()
             // 和网页版的 max-height:94vh 对应,顶上永远留一条能点关闭的空隙
             .heightIn(max = screenHeight * 0.94f)
-            .blur(if (dimmed) 12.dp else 0.dp)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
             .background(c.panelBg)
+            // 糊的是面板**里面的东西**,不是面板本身。
+            //
+            // 之前这行放在 clip/background 前面,连面板的圆角和底色一起糊了 ——
+            // 边缘化成一片渐变,和背后那层清晰边界的模糊页面接在一起,
+            // 就是那道「模糊边界断层」。放到 background 之后,底色和边保持锐利,
+            // 只有内容退到后面去,和页面的模糊半径也对得上了。
+            .blur(if (dimmed) PageBlur else 0.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -176,6 +182,12 @@ fun BoxScope.BottomSheet(
 
 /** 浮层底部淡出带的高度。内容的下内边距默认也用它,免得正文被削掉 */
 private val SheetBottomFade = 26.dp
+
+/**
+ * 模糊半径。页面和被压住的浮层用同一个值 —— 两处半径不一样,交界处的
+ * 「糊的程度」就对不上,一眼能看出是两层拼的。
+ */
+val PageBlur = 20.dp
 
 /**
  * 让内容在底部**真的淡出**,而不是拿一条渐变色带盖住它。

@@ -102,12 +102,23 @@ class Repository(private val store: Store) {
         commitDay(s.day.copy(food = s.day.food + entry))
     }
 
-    fun updateFood(id: String, name: String, kcal: Int, protein: Int) {
+    /**
+     * 改一条记录。[amount] 是新的份量;传 null 表示这条本来就没有份量基准
+     * (手填的),那就保持原样,不要写进一个凭空来的数字。
+     */
+    fun updateFood(id: String, name: String, kcal: Int, protein: Int, amount: Double? = null) {
         val s = _state.value
         commitDay(
             s.day.copy(
                 food = s.day.food.map {
-                    if (it.id == id) it.copy(name = name.trim(), kcal = kcal, protein = protein) else it
+                    if (it.id == id) {
+                        it.copy(
+                            name = name.trim(),
+                            kcal = kcal,
+                            protein = protein,
+                            amount = amount ?: it.amount,
+                        )
+                    } else it
                 }
             )
         )
@@ -239,6 +250,20 @@ class Repository(private val store: Store) {
         val next = s.mine.map {
             if (it.name.trim().lowercase() == key) it.copy(used = System.currentTimeMillis()) else it
         }
+        store.saveMine(next)
+        _state.value = s.copy(mine = next)
+    }
+
+    /**
+     * 改一条已保存的食物。
+     *
+     * 按 id 定位,不是按名字 —— 改名字也是修改的一种,按名字找会变成
+     * 「原来那条还在,又多出一条新的」。
+     */
+    fun updateMine(food: Food) {
+        val s = _state.value
+        val id = food.id ?: return
+        val next = s.mine.map { if (it.id == id) food else it }
         store.saveMine(next)
         _state.value = s.copy(mine = next)
     }

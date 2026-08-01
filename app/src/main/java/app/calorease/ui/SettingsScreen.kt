@@ -15,9 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +36,7 @@ fun SettingsScreen(
     onEditTarget: () -> Unit,
     onToggleProtein: () -> Unit,
     onToggleActiveIncludes: () -> Unit,
-    onDeleteMine: (String) -> Unit,
+    onOpenMine: () -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
 ) {
@@ -83,42 +80,18 @@ fun SettingsScreen(
             },
         )
 
-        // 平时收起来只占一行,点开才铺出来 —— 录得多了以后这一段能有几十条,
-        // 一直摊在页面上会把「备份」挤到很下面。
-        var mineOpen by remember { mutableStateOf(false) }
-
+        // 点右边那个箭头开一个面板,不在页面上就地展开 —— 录得多了以后
+        // 这一段能有几十条,摊开会把「备份」挤到很下面。
+        // 箭头朝右:它表示「进到另一块地方去」,不是「往下展开」。
         SectionHeader("我的食物")
         ItemRow(
             name = "已保存的食物",
-            onTap = { mineOpen = !mineOpen },
+            onTap = onOpenMine,
             action = {
                 Text("${state.mine.size} 条", fontSize = 13.sp, color = c.muted)
-                StrokeIcon(
-                    if (mineOpen) Icons.ChevronUp else Icons.ChevronDown,
-                    color = c.muted,
-                    size = 18.dp,
-                )
+                StrokeIcon(Icons.ChevronRight, color = c.muted, size = 18.dp)
             },
         )
-        if (mineOpen) {
-            if (state.mine.isEmpty()) {
-                EmptyHint("自己录入过的食物会存在这里，下次一键复用。")
-            } else {
-                state.mine.take(40).forEach { f ->
-                    ItemRow(
-                        name = f.name,
-                        sub = (if (f.isPerHundredGrams) "每 100g · " else "每份 · ") +
-                            (if (f.protein > 0) "${f.protein.f1()}g 蛋白质" else "点击可删除"),
-                        trailing = f.kcal.grouped(),
-                        trailingColor = c.intake,
-                        onDelete = { f.id?.let(onDeleteMine) },
-                    )
-                }
-                if (state.mine.size > 40) {
-                    Note("只显示最近 40 条，共 ${state.mine.size} 条。")
-                }
-            }
-        }
 
         SectionHeader("备份")
         GhostButton("导出数据", onClick = onExport, modifier = Modifier.padding(top = 4.dp))
