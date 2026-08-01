@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -127,10 +126,12 @@ fun BoxScope.BottomSheet(
                 indication = null,
                 onClick = { /* 吃掉点击,别穿透到遮罩 */ },
             )
-            .windowInsetsPadding(
-                WindowInsets.ime.union(WindowInsets.navigationBars).union(WindowInsets.statusBars)
-            )
-            .padding(top = 18.dp),
+            // **不含 statusBars。** windowInsetsPadding 是按各边分别加的,而状态栏
+            // 的 inset 在顶边 —— 这个面板贴着屏幕底,却照样吃到了一整条状态栏高度的
+            // 上内边距,标题上面因此空出四十多 dp。顶上撞不到状态栏这件事由
+            // heightIn(94%) 保证,不需要 inset 再兜一次。
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+            .padding(top = 16.dp),
     ) {
         Row(
             modifier = Modifier
@@ -158,15 +159,21 @@ fun BoxScope.BottomSheet(
         // 这里必须是 Column。之前为了挂滚动修饰符图省事用了 Box,而 Box 是
         // 层叠布局 —— 调用方发的同级元素(比如三个分页 + 搜索列表)会直接
         // 压在一起。「搜索食物」框和顶部分页重叠就是这么来的。
+        val scroll = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f, fill = false)
-                .then(if (fadeBottom > 0.dp) Modifier.fadeOutBottom(fadeBottom) else Modifier)
                 .then(
-                    if (scrollable) Modifier.verticalScroll(rememberScrollState())
-                    else Modifier
+                    if (fadeBottom > 0.dp && scrollable) {
+                        // 滚到底了就把淡出撤掉 —— 那时候底下没有还没露出来的内容,
+                        // 再糊一条只是白白把最后一行压灰。
+                        Modifier.fadeOutBottom(if (scroll.canScrollForward) fadeBottom else 0.dp)
+                    } else if (fadeBottom > 0.dp) {
+                        Modifier.fadeOutBottom(fadeBottom)
+                    } else Modifier
                 )
+                .then(if (scrollable) Modifier.verticalScroll(scroll) else Modifier)
                 .padding(horizontal = contentPadding)
                 // 上下都给投影留出余量。淡出那层是离屏合成,会把内容裁到自己的
                 // 边界上,不留这一截,第一个和最后一个部件的投影就被削平了。
@@ -260,6 +267,13 @@ fun Field(
     numeric: Boolean = false,
     decimal: Boolean = false,
     placeholder: String? = null,
+    /**
+     * 有内容时在右边显示一个清除按钮。搜索框传 true。
+     *
+     * 用叉不用橡皮:输入框右侧的叉是所有系统里通用的「清空这一栏」,
+     * 一眼就懂;橡皮在移动端更常见的意思是「擦除/编辑内容」,反而要想一下。
+     */
+    clearable: Boolean = false,
 ) {
     val c = LocalColors.current
     Column(modifier = modifier.padding(bottom = 12.dp)) {
@@ -287,12 +301,26 @@ fun Field(
             modifier = Modifier
                 .fillMaxWidth()
                 .glassSurface(10.dp, c.inputBg, elevation = 1.dp)
-                .padding(horizontal = 12.dp, vertical = 11.dp),
+                .padding(start = 12.dp, end = if (clearable) 6.dp else 12.dp, top = 11.dp, bottom = 11.dp),
             decorationBox = { inner ->
-                if (value.isEmpty() && placeholder != null) {
-                    Text(placeholder, style = style.copy(color = c.muted))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (value.isEmpty() && placeholder != null) {
+                            Text(placeholder, style = style.copy(color = c.muted))
+                        }
+                        inner()
+                    }
+                    if (clearable && value.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(7.dp))
+                                .clickable { onChange("") }
+                                .padding(5.dp),
+                        ) {
+                            StrokeIcon(Icons.Close, color = c.muted, size = 14.dp, strokeWidth = 2.2f)
+                        }
+                    }
                 }
-                inner()
             },
         )
     }

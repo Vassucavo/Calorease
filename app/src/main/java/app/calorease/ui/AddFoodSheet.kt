@@ -1,6 +1,6 @@
 package app.calorease.ui
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
@@ -18,7 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -223,10 +222,27 @@ private fun AddFoodBody(
         // 挂了 weight 报的就成了「父级还剩多少」,挂了滚动则多担一份风险 ——
         // 可滚动容器一旦被无限高度测量,Compose 是直接抛异常的。
         val scrollState = rememberScrollState()
+        // 淡出只在那个方向还有没露出来的内容时才画:停在最上面顶端不淡,
+        // 滚到底底端不淡,免得白白把第一行或最后一行压灰
+        val formTop by animateDpAsState(
+            if (scrollState.canScrollBackward) 14.dp else 0.dp,
+            label = "formTop",
+        )
+        val formBottom by animateDpAsState(
+            if (scrollState.canScrollForward) SheetTail else 0.dp,
+            label = "formBottom",
+        )
         val body = if (fill) {
-            Modifier.weight(1f).fadeOutBottom(SheetTail).verticalScroll(scrollState)
-        } else {
             Modifier
+                .weight(1f)
+                .fadeEdges(top = formTop, bottom = formBottom)
+                .verticalScroll(scrollState)
+                // 淡出那层会按自己的边界裁剪,留出这一截第一个输入框的投影才画得下
+                .padding(top = SheetShadowRoom)
+        } else {
+            // 量身那份也要带上这一截,否则量出来的高度比真身少 10,
+            // 真身正好多出这么一点、无谓地能滚动
+            Modifier.padding(top = SheetShadowRoom)
         }
 
         when (tab) {
@@ -289,16 +305,23 @@ private fun ColumnScope.SearchTab(mine: List<Food>, onPick: (Food) -> Unit, fill
     val groups = Foods.grouped(context, query, mine)
 
     val listState = rememberLazyListState()
-    val scrolled by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
-        }
-    }
-    // 顶端只在滚起来之后才淡出 —— 停在最上面时第一条不该是灰的
-    val fade by animateFloatAsState(if (scrolled) 1f else 0f, label = "topFade")
+    val topFade by animateDpAsState(
+        if (listState.canScrollBackward) 16.dp else 0.dp,
+        label = "searchTop",
+    )
+    val bottomFade by animateDpAsState(
+        if (listState.canScrollForward) SheetTail else 0.dp,
+        label = "searchBottom",
+    )
 
     Column(modifier = Modifier.padding(horizontal = SheetPad)) {
-        Field(label = "", value = query, onChange = { query = it }, placeholder = "搜索食物…")
+        Field(
+            label = "",
+            value = query,
+            onChange = { query = it },
+            placeholder = "搜索食物…",
+            clearable = true,
+        )
     }
 
     // 量身那一趟不摆列表 —— 惰性列表被无限高度测量会直接抛异常,而这一页
@@ -310,9 +333,15 @@ private fun ColumnScope.SearchTab(mine: List<Food>, onPick: (Food) -> Unit, fill
         modifier = Modifier
             .weight(1f)
             .fillMaxWidth()
-            .fadeEdges(top = 16.dp * fade, bottom = SheetTail),
-        // 左右内边距给列表自己,而不是给外面的容器 —— 淡出要整宽,条目要缩进
-        contentPadding = PaddingValues(start = SheetPad, end = SheetPad, bottom = 8.dp),
+            .fadeEdges(top = topFade, bottom = bottomFade),
+        // 左右内边距给列表自己,而不是给外面的容器 —— 淡出要整宽,条目要缩进。
+        // 上下也各留一截:淡出那层按自己的边界裁剪,不留的话首尾两条的投影是平的
+        contentPadding = PaddingValues(
+            start = SheetPad,
+            end = SheetPad,
+            top = SheetShadowRoom,
+            bottom = 8.dp,
+        ),
     ) {
         if (groups.isEmpty()) {
             item { EmptyHint("没找到。用“快速录入”自己填一条，填完会存起来。") }
