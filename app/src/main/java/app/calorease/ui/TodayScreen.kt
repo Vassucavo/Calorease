@@ -39,6 +39,7 @@ fun TodayScreen(
     state: Repository.AppState,
     onStepDay: (Long) -> Unit,
     onPickDate: () -> Unit,
+    onJumpToday: () -> Unit,
     onEditWatchActive: () -> Unit,
     onAddBurn: () -> Unit,
     onEditBurn: (String) -> Unit,
@@ -64,6 +65,7 @@ fun TodayScreen(
             isToday = isToday,
             onStep = onStepDay,
             onPickDate = onPickDate,
+            onJumpToday = onJumpToday,
         )
 
         Card {
@@ -184,8 +186,9 @@ fun TodayScreen(
 /**
  * 日期切换条。不能翻到未来 —— 右箭头在今天时是禁用的。
  *
- * 中间那块可以点,弹出月历直接挑一天。补录上个月某一天的记录时,
- * 一格一格按回去要按三十下。月历里另有「今天」按钮跳回来。
+ * 两个点击目标,各管各的:大号日期点了弹月历挑一天,底下那行小字在
+ * 不是今天的时候是「回到今天」,点了直接跳回来。最常用的两件事
+ * 各一下就到,不用先弹月历再在里面找今天。
  */
 @Composable
 private fun DateNav(
@@ -193,6 +196,7 @@ private fun DateNav(
     isToday: Boolean,
     onStep: (Long) -> Unit,
     onPickDate: () -> Unit,
+    onJumpToday: () -> Unit,
 ) {
     val c = LocalColors.current
     Row(
@@ -202,22 +206,26 @@ private fun DateNav(
     ) {
         ArrowButton(Icons.ChevronLeft, enabled = true) { onStep(-1) }
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(9.dp))
-                .clickable(onClick = onPickDate)
-                .padding(vertical = 3.dp),
+            modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
                 Dates.full(dateKey),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .clickable(onClick = onPickDate)
+                    .padding(horizontal = 10.dp, vertical = 2.dp),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 color = c.ink,
             )
             Text(
-                if (isToday) "今天" else "选择日期",
+                if (isToday) "今天" else "回到今天",
+                modifier = Modifier
+                    .clip(RoundedCornerShape(7.dp))
+                    .then(if (isToday) Modifier else Modifier.clickable(onClick = onJumpToday))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
                 fontSize = 11.sp,
                 fontWeight = if (isToday) FontWeight.Normal else FontWeight.SemiBold,
                 color = if (isToday) c.muted else c.burn,

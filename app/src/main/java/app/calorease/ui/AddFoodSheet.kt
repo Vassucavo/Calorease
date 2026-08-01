@@ -99,14 +99,16 @@ private class LabelForm {
 fun BoxScope.AddFoodSheet(
     profile: Profile?,
     mine: List<Food>,
-    curDate: String,
     onDismiss: () -> Unit,
     onAdd: (name: String, kcal: Int, protein: Int, amount: Double?, unit: String?) -> Unit,
     onRemember: (Food) -> Unit,
-    onTouch: (String) -> Unit,
+    /**
+     * 选中一条食物。详情面板**不在这里画** —— 它是二级浮层,必须留在
+     * 模糊层外面(见 App),不然连它自己也会被一起糊掉。
+     */
+    onPick: (Food) -> Unit,
 ) {
     var tab by remember { mutableStateOf(AddTab.Search) }
-    var picked by remember { mutableStateOf<Food?>(null) }
     val showProtein = profile?.showProtein == true
     val quick = remember { QuickForm() }
     val label = remember { LabelForm() }
@@ -121,8 +123,6 @@ fun BoxScope.AddFoodSheet(
         contentBottomPadding = 0.dp,
         // 底部有固定按钮,浮层统一的淡出会把按钮一起削掉,这里自己只淡出内容区
         fadeBottom = 0.dp,
-        // 选了食物之后本面板退到后面:糊掉,压暗交给上层面板自己的遮罩
-        dimmed = picked != null,
     ) {
         MatchHeight(
             // 量的是「营养标签」那一页 —— 三页里最长的
@@ -148,7 +148,7 @@ fun BoxScope.AddFoodSheet(
                 mine = mine,
                 fill = true,
                 onSelectTab = { tab = it },
-                onPick = { picked = it },
+                onPick = onPick,
                 onCommit = { food, kcal, protein, amount, save ->
                     if (save) onRemember(food)
                     onAdd(food.name, kcal, protein, amount, food.unit)
@@ -156,21 +156,6 @@ fun BoxScope.AddFoodSheet(
                 },
             )
         }
-    }
-
-    val p = picked
-    if (p != null) {
-        PickedSheet(
-            food = p,
-            showProtein = showProtein,
-            curDate = curDate,
-            onDismiss = { picked = null },
-            onCommit = { kcal, protein, amount ->
-                onAdd(p.name, kcal, protein, amount, p.unit)
-                onTouch(p.name)
-                onDismiss()
-            },
-        )
     }
 }
 
@@ -406,7 +391,7 @@ private fun PickRow(food: Food, isMine: Boolean, onPick: (Food) -> Unit) {
  * 「返回列表」:点右上角的叉就回到上一级,和层级关系正好对得上。
  */
 @Composable
-private fun BoxScope.PickedSheet(
+fun BoxScope.PickedSheet(
     food: Food,
     showProtein: Boolean,
     curDate: String,

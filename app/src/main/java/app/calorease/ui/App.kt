@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.calorease.data.Backup
 import app.calorease.data.BackupFile
+import app.calorease.data.Food
 import app.calorease.data.Repository
 import app.calorease.data.Store
 import app.calorease.logic.Dates
@@ -86,6 +87,20 @@ private sealed interface Sheet {
 }
 
 /**
+ * 叠在一级浮层上面的那一层。
+ *
+ * 单独拎出来是因为**模糊**:二级浮层打开时,页面和一级浮层要作为一个整体
+ * 糊一次,而它自己得留在那一层外面。做不到的话就只能给一级浮层单独挂
+ * Modifier.blur,而那样面板顶边永远会留下一条清晰的直线 ——
+ * blur 会把模糊结果裁到自己的矩形边界上,那条边界就是那条线。
+ */
+private sealed interface Sheet2 {
+    data class PickFood(val food: Food) : Sheet2
+    data class EditMine(val food: Food) : Sheet2
+    data object PickWeightDate : Sheet2
+}
+
+/**
  * 返回键。
  *
  * 错误档案第 8 条那个「异步查询 + 失败即退出」的坑,在原生层根本不存在 ——
@@ -105,6 +120,12 @@ fun App(
     val context = LocalContext.current
     var tab by remember { mutableStateOf(Tab.Today) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
+    var sheet2 by remember { mutableStateOf<Sheet2?>(null) }
+    // 记录体重那个面板里选中的日期。放在这里是因为月历是二级浮层,
+    // 画在模糊层外面,够不着面板内部的状态。换一个浮层就重置。
+    var weightDate by remember(sheet) {
+        mutableStateOf((sheet as? Sheet.EditWeight)?.date ?: Dates.today())
+    }
 
     BackHandler(enabled = tab != Tab.Today) { tab = Tab.Today }
 
@@ -135,17 +156,22 @@ fun App(
     }
 
     val overlayOpen = sheet != null || state.isFirstRun
+    val level2Open = sheet2 != null
 
     Box(modifier = Modifier.fillMaxSize().pageBackground(c)) {
+    // 页面和一级浮层合起来算「后面那一层」。二级浮层打开时,**整层糊一次** ——
+    // 而不是页面糊一次、面板再各自糊一次。两次分开糊的话,面板的矩形边界会在
+    // 模糊结果上留下一条清晰的直线(blur 默认裁到自己的边界),半径怎么调都在。
+    Box(modifier = Modifier.fillMaxSize().blur(if (level2Open) PageBlur else 0.dp)) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            // 浮层打开时把页面整体模糊 —— 这是磨砂玻璃真正的来源。
+            // 一级浮层打开时把页面糊掉 —— 这是磨砂玻璃真正的来源。
             // 网页版靠 backdrop-filter,原生这边只能反过来做:把背后的内容
             // 自己糊掉,再让半透明的浮层压在上面。
-            // 半径要够大,不然透出来的是「能认出字的模糊」而不是柔焦色块。
+            // 二级浮层开着的时候这里不糊,交给外面那层一起糊,免得糊两遍。
             // Android 12 以下这行是空操作,那些机器上退化成半透明纯色。
-            .blur(if (overlayOpen) PageBlur else 0.dp),
+            .blur(if (overlayOpen && !level2Open) PageBlur else 0.dp),
     ) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             // 今天和体重两页底部各有一个固定按钮。内容要多留出它的高度,
@@ -201,6 +227,7 @@ fun App(
                                 state = state,
                                 onStepDay = { repo.stepDay(it) },
                                 onPickDate = { sheet = Sheet.PickDay },
+                                onJumpToday = { repo.jumpToToday() },
                                 onEditWatchActive = { sheet = Sheet.WatchActive },
                                 onAddBurn = { sheet = Sheet.AddBurn },
                                 onEditBurn = { sheet = Sheet.EditBurn(it) },
@@ -281,8 +308,23 @@ fun App(
             repo = repo,
             store = store,
             firstRun = state.isFirstRun,
+            weightDate = weightDate,
             onClose = { sheet = null },
+            onOpen2 = { sheet2 = it },
         )
+    }
+
+    // 二级浮层在模糊层**外面**,所以它自己是清晰的,而它底下的一切
+    // (页面 + 一级浮层)是被当成一整块糊过的,中间没有交界
+    RenderSheet2(
+        sheet2 = sheet2,
+        state = state,
+        repo = repo,
+        weightDate = weightDate,
+        onClose = { sheet2 = null },
+        onCloseAll = { sheet2 = null; sheet = null },
+        onWeightDate = { weightDate = it },
+    )
     }
 }
 
@@ -293,7 +335,9 @@ private fun BoxScope.RenderSheet(
     repo: Repository,
     store: Store,
     firstRun: Boolean,
+    weightDate: String,
     onClose: () -> Unit,
+    onOpen2: (Sheet2) -> Unit,
 ) {
     // 身体数据没填全就先把这个表单顶上来 —— 没有它算不出基础代谢,整个应用没法用。
     // 这个表单关不掉,填完保存才会消失。
@@ -313,13 +357,12 @@ private fun BoxScope.RenderSheet(
         Sheet.AddFood -> AddFoodSheet(
             profile = state.profile,
             mine = state.mine,
-            curDate = state.curDate,
             onDismiss = onClose,
             onAdd = { name, kcal, protein, amount, unit ->
                 repo.addFood(name, kcal, protein, amount, unit)
             },
             onRemember = { repo.rememberFood(it) },
-            onTouch = { repo.touchFood(it) },
+            onPick = { onOpen2(Sheet2.PickFood(it)) },
         )
 
         Sheet.WatchActive -> WatchActiveSheet(
@@ -366,14 +409,17 @@ private fun BoxScope.RenderSheet(
 
         Sheet.MineList -> MineSheet(
             mine = state.mine,
-            showProtein = state.profile?.showProtein == true,
             onDismiss = onClose,
-            onSave = { repo.updateMine(it) },
+            onEdit = { onOpen2(Sheet2.EditMine(it)) },
+            // 新建的那条还没有 id,存的时候按这个区分是新增还是修改
+            onAdd = { onOpen2(Sheet2.EditMine(Food(name = "", kcal = 0, unit = "g"))) },
             onDelete = { repo.deleteMine(it) },
         )
 
         Sheet.AddWeight -> WeightSheet(
             existing = null,
+            date = weightDate,
+            onPickDate = { onOpen2(Sheet2.PickWeightDate) },
             onDismiss = onClose,
             onSave = { entry, replace -> repo.saveWeight(entry, replace) },
         )
@@ -382,6 +428,8 @@ private fun BoxScope.RenderSheet(
             val w = state.weights.firstOrNull { it.date == sheet.date }
             if (w == null) onClose() else WeightSheet(
                 existing = w,
+                date = weightDate,
+                onPickDate = { onOpen2(Sheet2.PickWeightDate) },
                 onDismiss = onClose,
                 onSave = { entry, replace -> repo.saveWeight(entry, replace) },
             )
@@ -412,6 +460,60 @@ private fun BoxScope.RenderSheet(
             onMerge = {
                 Backup.apply(store, sheet.backup, Backup.Mode.Merge)
                 repo.load()
+                onClose()
+            },
+        )
+    }
+}
+
+/**
+ * 二级浮层。画在模糊层外面,所以它自己清晰,底下的一切被当成一整块糊过。
+ *
+ * [onCloseAll] 用于「做完这件事整摞都该收起来」的情况:选好食物加进记录之后,
+ * 再退回食物列表没有意义。[onClose] 只收自己这一层。
+ */
+@Composable
+private fun BoxScope.RenderSheet2(
+    sheet2: Sheet2?,
+    state: Repository.AppState,
+    repo: Repository,
+    weightDate: String,
+    onClose: () -> Unit,
+    onCloseAll: () -> Unit,
+    onWeightDate: (String) -> Unit,
+) {
+    when (sheet2) {
+        null -> Unit
+
+        is Sheet2.PickFood -> PickedSheet(
+            food = sheet2.food,
+            showProtein = state.profile?.showProtein == true,
+            curDate = state.curDate,
+            onDismiss = onClose,
+            onCommit = { kcal, protein, amount ->
+                repo.addFood(sheet2.food.name, kcal, protein, amount, sheet2.food.unit)
+                repo.touchFood(sheet2.food.name)
+                onCloseAll()
+            },
+        )
+
+        is Sheet2.EditMine -> MineEditSheet(
+            food = sheet2.food,
+            showProtein = state.profile?.showProtein == true,
+            onDismiss = onClose,
+            onSave = { food ->
+                // 新建的那条还没有 id,rememberFood 会给它编一个并按名字去重;
+                // 已有的那条按 id 原地改,这样改名字不会变成两条
+                if (food.id == null) repo.rememberFood(food) else repo.updateMine(food)
+                onClose()
+            },
+        )
+
+        Sheet2.PickWeightDate -> DatePickSheet(
+            value = weightDate,
+            onDismiss = onClose,
+            onPick = {
+                onWeightDate(it)
                 onClose()
             },
         )

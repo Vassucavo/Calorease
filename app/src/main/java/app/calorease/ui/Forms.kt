@@ -201,26 +201,25 @@ fun BoxScope.EditFoodSheet(
 @Composable
 fun BoxScope.WeightSheet(
     existing: WeightEntry?,
+    /**
+     * 选中的日期。提到 App 那一层管,因为月历是二级浮层 —— 它得画在模糊层
+     * 外面,拿不到这个面板内部的状态。
+     */
+    date: String,
+    onPickDate: () -> Unit,
     onDismiss: () -> Unit,
     onSave: (WeightEntry, replaceDate: String?) -> Unit,
 ) {
     var kg by remember { mutableStateOf(existing?.kg?.f1() ?: "") }
     var bf by remember { mutableStateOf(existing?.bf?.f1() ?: "") }
-    // 默认就是今天,所以不需要一个「今天」按钮 —— 什么都不动就已经是今天
-    var date by remember { mutableStateOf(existing?.date ?: Dates.today()) }
-    var pickingDate by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    BottomSheet(
-        if (existing == null) "记录体重" else "修改记录",
-        onDismiss,
-        dimmed = pickingDate,
-    ) {
+    BottomSheet(if (existing == null) "记录体重" else "修改记录", onDismiss) {
         Column {
             Field("体重（kg）", kg, { kg = it }, decimal = true, placeholder = "70.0")
             Field("体脂率（%，可留空）", bf, { bf = it }, decimal = true, placeholder = "留空也行")
 
-            DateRow(label = "日期", value = date) { pickingDate = true }
+            DateRow(label = "日期", value = date, onClick = onPickDate)
 
             FieldError(error)
 
@@ -235,18 +234,6 @@ fun BoxScope.WeightSheet(
                 }
             })
         }
-    }
-
-    // 月历叠在这个面板上面,选完就收 —— 和「添加餐食 → 食物详情」是同一套层级
-    if (pickingDate) {
-        DatePickSheet(
-            value = date,
-            onDismiss = { pickingDate = false },
-            onPick = {
-                date = it
-                pickingDate = false
-            },
-        )
     }
 }
 

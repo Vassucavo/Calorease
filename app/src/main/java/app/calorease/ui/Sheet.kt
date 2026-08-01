@@ -89,11 +89,6 @@ fun BoxScope.BottomSheet(
      */
     contentBottomPadding: Dp = SheetBottomFade,
     /**
-     * 被上层浮层压住时把自己糊掉,让上层看起来是浮在前面的。
-     * 压暗交给上层浮层自己的遮罩 —— 那层本来就盖在这上面,不用画两遍。
-     */
-    dimmed: Boolean = false,
-    /**
      * 底部淡出带的高度。传 0 表示这个浮层自己管收边 —— 添加餐食那个面板
      * 底部有固定按钮,整片淡出会把按钮一起削掉,它得自己只淡出列表那一段。
      */
@@ -123,16 +118,6 @@ fun BoxScope.BottomSheet(
             .fillMaxWidth()
             // 和网页版的 max-height:94vh 对应,顶上永远留一条能点关闭的空隙
             .heightIn(max = screenHeight * 0.94f)
-            // 被上层压住时**连边一起糊**,不只是糊内容。
-            //
-            // 这行的位置来回改过两次,记一下结论:放在 clip/background 之后
-            // 只糊内容,面板的边和底色留在原地是锐的 —— 一块清晰的白边包着一团
-            // 糊掉的内容,很假。放在前面(现在这样)整块面板一起糊,边缘自然虚开,
-            // 和背后同样糊过的页面连成一片。
-            //
-            // 之前那次「模糊边界断层」不是位置的问题,是半径的问题:面板糊 12、
-            // 页面糊 20,交界处糊的程度对不上。现在两边共用 PageBlur。
-            .blur(if (dimmed) PageBlur else 0.dp)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
             .background(c.panelBg)
             .clickable(
@@ -187,8 +172,15 @@ fun BoxScope.BottomSheet(
 private val SheetBottomFade = 26.dp
 
 /**
- * 模糊半径。页面和被压住的浮层用同一个值 —— 两处半径不一样,交界处的
- * 「糊的程度」就对不上,一眼能看出是两层拼的。
+ * 模糊半径。
+ *
+ * **浮层自己不做模糊。** 试过在面板上单独挂 Modifier.blur,不管半径调成多少、
+ * 放在 clip 前面还是后面,面板顶边始终是一条清晰的直线 —— 因为 blur 默认会把
+ * 模糊结果裁到自己的矩形边界上(BlurredEdgeTreatment.Rectangle),
+ * 那条边界就是那道线,和半径无关。
+ *
+ * 所以二级浮层打开时,是**页面和一级浮层作为一个整体**被糊一次(见 App),
+ * 中间根本不存在两层的交界,自然也就没有那条线。
  */
 val PageBlur = 20.dp
 
