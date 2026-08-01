@@ -10,6 +10,7 @@ import app.calorease.logic.Calibration
 import app.calorease.logic.Checked
 import app.calorease.logic.Dates
 import app.calorease.logic.Nutrition
+import app.calorease.logic.Reports
 import app.calorease.logic.Validate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -69,6 +70,36 @@ class LogicTest {
         val p = male.copy(activeIncludesWorkouts = true)
         // 那 300 已经在 400 里面了,再加一遍就是同一份消耗算两次
         assertEquals(Nutrition.bmr(p) + 400, Nutrition.burned(p, day))
+    }
+
+    // ---------- 复制出去的那张表 ----------
+
+    @Test
+    fun `体重表把热量并到同一行,并给出跨度和每周变化`() {
+        val weights = listOf(
+            WeightEntry("2026-05-01", 70.0, 20.0),
+            WeightEntry("2026-05-15", 69.3, null),
+        )
+        val history = mapOf(
+            "2026-05-01" to HistoryEntry(intake = 1800, burned = 2300),
+            // 5-15 那天没记热量,那两格该是空的,不能编一个 0 出来
+        )
+        val text = Reports.weightTable(weights, history, male)
+
+        assertTrue(text.contains("日期,体重kg,体脂%,瘦体重kg,摄入kcal,消耗kcal"))
+        assertTrue(text.contains("2026-05-01,70.0,20.0,56.0,1800,2300"))
+        assertTrue(text.contains("2026-05-15,69.3,,,,"))
+        // 14 天掉 0.7kg,每周 0.35
+        assertTrue(text.contains("跨度 14 天"))
+        assertTrue(text.contains("−0.7 kg"))
+        assertTrue(text.contains("平均每周 −0.35 kg"))
+    }
+
+    @Test
+    fun `没有体重记录时不会编数字出来`() {
+        val text = Reports.weightTable(emptyList(), emptyMap(), male)
+        assertTrue(text.contains("还没有体重记录"))
+        assertFalse(text.contains("跨度"))
     }
 
     @Test

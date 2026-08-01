@@ -46,12 +46,19 @@ fun LogsScreen(
             Note("平均每天摄入 ${avgIn.grouped()}。单日波动很大，以周为单位看才靠谱。")
         }
 
+        // 那天称的体重也挂上去。这一页是回头看的地方,而这个应用从头到尾
+        // 在讲的就是「摄入减消耗」和体重的对应关系 —— 两个数隔在两页里,
+        // 就得来回翻才对得上。没称的那天不显示,不占位置。
+        val byDate = state.weights.associateBy { it.date }
+
         keys.forEach { k ->
             val h = state.history.getValue(k)
             val net = h.intake - h.burned
+            val kg = byDate[k]?.kg
             ItemRow(
                 name = Dates.full(k),
-                sub = "摄入 ${h.intake.grouped()} · 消耗 ${h.burned.grouped()}",
+                sub = "摄入 ${h.intake.grouped()} · 消耗 ${h.burned.grouped()}" +
+                    (kg?.let { " · ${it.f1()} kg" } ?: ""),
                 trailing = (if (net >= 0) "+" else "−") + abs(net).grouped(),
                 trailingColor = if (net >= 0) c.intake else c.burn,
                 onTap = { onOpenDay(k) },

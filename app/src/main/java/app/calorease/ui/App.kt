@@ -56,8 +56,13 @@ import app.calorease.ui.theme.pageBackground
 /** 固定按钮那一段的淡出高度。按钮高约 44,加上上下留白差不多是这个数 */
 private val PinnedFade = 72.dp
 
+/** 滚动区顶部留给部件投影的余量。glassSurface 的落影最多外扩这么多 */
+private val ShadowRoom = 10.dp
+
 enum class Tab(val label: String, val icon: VectorIcon, val eyebrow: String, val title: String) {
-    Today("今天", Icons.Today, "Calorease", ""),           // 标题是当天日期,运行时填
+    // 这一页不只有今天 —— 可以翻到任何一天。所以底栏叫「看板」而不是「今天」,
+    // 免得翻到上周之后底下还写着「今天」。枚举名保持 Today,它指的是「当日视图」。
+    Today("看板", Icons.Today, "Calorease", ""),           // 标题是当天日期,运行时填
     Weight("体重", Icons.Weight, "体重", "趋势"),
     Tune("校准", Icons.Tune, "校准", "你身体给出的真实数字"),
     Logs("记录", Icons.Logs, "记录", "历史"),
@@ -77,6 +82,7 @@ private sealed interface Sheet {
     data object EditProfile : Sheet
     data class Restore(val backup: BackupFile) : Sheet
     data object MineList : Sheet
+    data object PickDay : Sheet
 }
 
 /**
@@ -182,6 +188,10 @@ fun App(
                         .padding(
                             start = Dimens.screenPadding,
                             end = Dimens.screenPadding,
+                            // 每个部件的投影是画在自己边界之外的,而滚动区会在
+                            // 自己的上沿把内容裁掉 —— 不留这一截,第一个部件顶上
+                            // 那圈投影就被齐刷刷切没了,看着像少了一条边。
+                            top = ShadowRoom,
                             bottom = if (pinned) 84.dp else 24.dp,
                         ),
                 ) {
@@ -190,7 +200,7 @@ fun App(
                             Tab.Today -> TodayScreen(
                                 state = state,
                                 onStepDay = { repo.stepDay(it) },
-                                onJumpToday = { repo.jumpToToday() },
+                                onPickDate = { sheet = Sheet.PickDay },
                                 onEditWatchActive = { sheet = Sheet.WatchActive },
                                 onAddBurn = { sheet = Sheet.AddBurn },
                                 onEditBurn = { sheet = Sheet.EditBurn(it) },
@@ -344,6 +354,15 @@ private fun BoxScope.RenderSheet(
                 },
             )
         }
+
+        Sheet.PickDay -> DatePickSheet(
+            value = state.curDate,
+            onDismiss = onClose,
+            onPick = {
+                repo.openDate(it)
+                onClose()
+            },
+        )
 
         Sheet.MineList -> MineSheet(
             mine = state.mine,

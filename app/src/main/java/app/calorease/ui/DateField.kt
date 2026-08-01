@@ -88,6 +88,18 @@ fun BoxScope.DatePickSheet(
 
     BottomSheet("选择日期", onDismiss) {
         Column {
+            // 「今天」要同时做两件事:把选中日期设回今天,**并且把月历翻回本月**。
+            // 之前那版只做了前一件,人在别的月份上按它,选中的日期确实变了,
+            // 但眼前这一屏还停在那个月,看上去就是「按了没反应」。
+            GhostButton(
+                "今天",
+                onClick = {
+                    month = YearMonth.from(today)
+                    onPick(Dates.key(today))
+                },
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+
             // ---------- 月份切换 ----------
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
@@ -127,9 +139,14 @@ fun BoxScope.DatePickSheet(
             // dayOfWeek.value 是 1 = 周一,正好对上表头的排法
             val lead = first.dayOfWeek.value - 1
             val days = month.lengthOfMonth()
-            val rows = (lead + days + 6) / 7
 
-            for (r in 0 until rows) {
+            // **永远画 6 行**,哪怕这个月只占 5 行。
+            //
+            // 一个月横跨几周是 4 到 6 不等的(8 月 6 周、7 月 5 周),按实际行数画的话
+            // 翻个月面板就整个长高或者变矮 —— 而它是叠在别的面板上的,一变高就
+            // 盖过下面那层的边,半透明之下重叠看得一清二楚。
+            // 固定成最多的那个行数,内容从上往下排,少的月份下面空着就是了。
+            for (r in 0 until 6) {
                 Row(modifier = Modifier.fillMaxWidth()) {
                     for (col in 0 until 7) {
                         val dayNum = r * 7 + col - lead + 1

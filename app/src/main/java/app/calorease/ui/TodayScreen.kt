@@ -38,7 +38,7 @@ import kotlin.math.max
 fun TodayScreen(
     state: Repository.AppState,
     onStepDay: (Long) -> Unit,
-    onJumpToday: () -> Unit,
+    onPickDate: () -> Unit,
     onEditWatchActive: () -> Unit,
     onAddBurn: () -> Unit,
     onEditBurn: (String) -> Unit,
@@ -63,7 +63,7 @@ fun TodayScreen(
             dateKey = state.curDate,
             isToday = isToday,
             onStep = onStepDay,
-            onJumpToday = onJumpToday,
+            onPickDate = onPickDate,
         )
 
         Card {
@@ -184,16 +184,15 @@ fun TodayScreen(
 /**
  * 日期切换条。不能翻到未来 —— 右箭头在今天时是禁用的。
  *
- * 中间那块可以点:翻远了之后一下跳回今天,不用一格一格按回来。
- * 副行直接说明这件事(「回到今天」),所以不需要再挂一句「点两侧箭头切换日期」——
- * 两个箭头长什么样、干什么用,不用文字解释。
+ * 中间那块可以点,弹出月历直接挑一天。补录上个月某一天的记录时,
+ * 一格一格按回去要按三十下。月历里另有「今天」按钮跳回来。
  */
 @Composable
 private fun DateNav(
     dateKey: String,
     isToday: Boolean,
     onStep: (Long) -> Unit,
-    onJumpToday: () -> Unit,
+    onPickDate: () -> Unit,
 ) {
     val c = LocalColors.current
     Row(
@@ -206,7 +205,7 @@ private fun DateNav(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(9.dp))
-                .then(if (isToday) Modifier else Modifier.clickable(onClick = onJumpToday))
+                .clickable(onClick = onPickDate)
                 .padding(vertical = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -218,7 +217,7 @@ private fun DateNav(
                 color = c.ink,
             )
             Text(
-                if (isToday) "今天" else "回到今天",
+                if (isToday) "今天" else "选择日期",
                 fontSize = 11.sp,
                 fontWeight = if (isToday) FontWeight.Normal else FontWeight.SemiBold,
                 color = if (isToday) c.muted else c.burn,
