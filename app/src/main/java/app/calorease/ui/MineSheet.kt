@@ -1,25 +1,20 @@
 package app.calorease.ui
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import app.calorease.data.Food
 import app.calorease.logic.Checked
@@ -50,11 +45,18 @@ fun BoxScope.MineSheet(
     onDelete: (Food) -> Unit,
 ) {
     val c = LocalColors.current
-    var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     val scroll = rememberScrollState()
-    val scrolled by remember { derivedStateOf { scroll.value > 0 } }
-    val topFade by animateDpAsState(if (scrolled) 14.dp else 0.dp, label = "mineTop")
+    // 淡出只在「那个方向还有没露出来的内容」时才画。停在最上面时顶端不淡,
+    // 滚到底时底端不淡 —— 否则只是白白把第一行或最后一行压灰。
+    val topFade by animateDpAsState(
+        if (scroll.canScrollBackward) 14.dp else 0.dp,
+        label = "mineTop",
+    )
+    val bottomFade by animateDpAsState(
+        if (scroll.canScrollForward) Tail else 0.dp,
+        label = "mineBottom",
+    )
 
     val shown = remember(mine, query) {
         val q = query.trim().lowercase()
@@ -71,39 +73,30 @@ fun BoxScope.MineSheet(
         contentPadding = 0.dp,
         contentBottomPadding = 0.dp,
         fadeBottom = 0.dp,
-        action = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        searching = !searching
-                        if (!searching) query = ""
-                    }
-                    .padding(6.dp),
-            ) {
-                StrokeIcon(
-                    Icons.Search,
-                    color = if (searching) c.burn else c.muted,
-                    size = 19.dp,
-                    strokeWidth = 2f,
-                )
-            }
-        },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            if (searching) {
-                Column(modifier = Modifier.padding(horizontal = Pad)) {
-                    Field(label = "", value = query, onChange = { query = it }, placeholder = "搜索已保存的食物…")
-                }
+            // 搜索框常驻。藏在放大镜后面等于多一步,而这个列表本来就是
+            // 「知道要找哪一条才会进来」的地方。
+            Column(modifier = Modifier.padding(horizontal = Pad)) {
+                Field(
+                    label = "",
+                    value = query,
+                    onChange = { query = it },
+                    placeholder = "搜索已保存的食物…",
+                    clearable = true,
+                )
             }
 
             Column(
                 modifier = Modifier
                     // fill = false:条目少的时候面板就该矮,不要撑满整屏
                     .weight(1f, fill = false)
-                    .fadeEdges(top = topFade, bottom = Tail)
+                    .fadeEdges(top = topFade, bottom = bottomFade)
                     .verticalScroll(scroll)
-                    .padding(horizontal = Pad),
+                    .padding(horizontal = Pad)
+                    // 淡出那层会把内容裁到自己的边界上。留出这一截,第一条的
+                    // 投影才画得下 —— 不然没滚动的时候它顶上就是平的。
+                    .padding(top = SheetShadowRoom),
             ) {
                 when {
                     mine.isEmpty() -> EmptyHint(

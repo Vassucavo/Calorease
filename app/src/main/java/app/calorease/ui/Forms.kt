@@ -51,9 +51,17 @@ fun BoxScope.ConfirmDeleteSheet(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
+    val c = LocalColors.current
     BottomSheet("删除确认", onDismiss) {
         Column {
-            Note("将删除“$what”，此操作无法撤销。")
+            // 这句不是补充说明,是这个面板要问的问题本身 —— 用正文的字号和
+            // 正文的颜色,不能拿 Note 那种 12sp 的灰字打发
+            Text(
+                "将删除“$what”，此操作无法撤销。",
+                fontSize = 15.sp,
+                lineHeight = 23.sp,
+                color = c.ink,
+            )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

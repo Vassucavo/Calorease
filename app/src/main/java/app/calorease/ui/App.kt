@@ -24,7 +24,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -182,10 +181,16 @@ fun App(
             // 都是这么丢的。
             val pinned = tab == Tab.Today || tab == Tab.Weight
             val scroll = rememberScrollState()
-            val scrolled by remember { derivedStateOf { scroll.value > 0 } }
-            // 顶栏固定之后,内容要从它底下淡出去,不然是齐刷刷地被切断。
-            // 没滚的时候不淡 —— 停在最上面时第一行不该是灰的。
-            val topFade by animateDpAsState(if (scrolled) 18.dp else 0.dp, label = "topFade")
+            // 淡出只在那个方向还有没露出来的内容时才画。停在最上面时顶端不淡
+            // (第一行不该是灰的),滚到底时底端也不淡。
+            val topFade by animateDpAsState(
+                if (scroll.canScrollBackward) 18.dp else 0.dp,
+                label = "topFade",
+            )
+            val bottomFade by animateDpAsState(
+                if (pinned && scroll.canScrollForward) PinnedFade else 0.dp,
+                label = "bottomFade",
+            )
 
             Column(
                 modifier = Modifier
@@ -209,10 +214,7 @@ fun App(
                         // 上下两头都淡出。用的是 alpha 遮罩而不是一条渐变色带 ——
                         // 页面底色是四层渐变叠出来的,没有哪个固定色值能和它对上,
                         // 拿色带盖必然穿帮。淡出露出来的就是页面本身,永远同色。
-                        .fadeEdges(
-                            top = topFade,
-                            bottom = if (pinned) PinnedFade else 0.dp,
-                        )
+                        .fadeEdges(top = topFade, bottom = bottomFade)
                         .verticalScroll(scroll)
                         .padding(
                             start = Dimens.screenPadding,
